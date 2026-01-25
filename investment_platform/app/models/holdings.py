@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import Column, Integer, String, Numeric, DateTime, UniqueConstraint
 
-from app.database import Base, get_scoped_session
+from app.database import Base, get_scoped_session, is_csv_backend, get_csv_storage
 
 
 class Holdings(Base):
@@ -104,17 +104,31 @@ class Holdings(Base):
     @classmethod
     def get_user_holdings(cls, user_id='default'):
         """Get all holdings for a user, ordered by symbol."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            holdings = storage.get_holdings(user_id)
+            return sorted(holdings, key=lambda x: x.get('symbol', ''))
+
         session = get_scoped_session()
         return session.query(cls).filter_by(user_id=user_id).order_by(cls.symbol).all()
 
     @classmethod
     def get_holding(cls, user_id, symbol):
         """Get a specific holding by user and symbol."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_holding(user_id, symbol)
+
         session = get_scoped_session()
         return session.query(cls).filter_by(user_id=user_id, symbol=symbol).first()
 
     @classmethod
     def delete_user_holdings(cls, user_id='default'):
         """Delete all holdings for a user (used in portfolio reset)."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.delete_user_holdings(user_id)
+            return
+
         session = get_scoped_session()
         session.query(cls).filter_by(user_id=user_id).delete()

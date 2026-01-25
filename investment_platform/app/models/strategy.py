@@ -6,7 +6,7 @@ Stores user-specific customizations for each investment strategy.
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, SmallInteger, DateTime, UniqueConstraint
 
-from app.database import Base, get_scoped_session
+from app.database import Base, get_scoped_session, is_csv_backend, get_csv_storage
 
 
 class StrategyCustomization(Base):
@@ -108,12 +108,20 @@ class StrategyCustomization(Base):
     @classmethod
     def get_user_customizations(cls, user_id='default'):
         """Get all strategy customizations for a user."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_strategy_customizations(user_id)
+
         session = get_scoped_session()
         return session.query(cls).filter_by(user_id=user_id).all()
 
     @classmethod
     def get_customization(cls, user_id, strategy_id):
         """Get customization for a specific user and strategy."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_strategy_customization(user_id, strategy_id)
+
         session = get_scoped_session()
         return session.query(cls).filter_by(user_id=user_id, strategy_id=strategy_id).first()
 
@@ -128,8 +136,13 @@ class StrategyCustomization(Base):
             **kwargs: Customization parameters
 
         Returns:
-            StrategyCustomization instance
+            StrategyCustomization instance or dict (if CSV backend)
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.upsert_strategy_customization(user_id, strategy_id, **kwargs)
+            return storage.get_strategy_customization(user_id, strategy_id)
+
         session = get_scoped_session()
         customization = cls.get_customization(user_id, strategy_id)
 

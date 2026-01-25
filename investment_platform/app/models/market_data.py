@@ -7,7 +7,7 @@ from datetime import datetime, date, timezone
 from decimal import Decimal
 from sqlalchemy import Column, Integer, String, Numeric, DateTime, Date, BigInteger, UniqueConstraint, Index
 
-from app.database import Base, get_scoped_session
+from app.database import Base, get_scoped_session, is_csv_backend, get_csv_storage
 
 
 class MarketDataCache(Base):
@@ -73,8 +73,12 @@ class MarketDataCache(Base):
             end_date: End date (inclusive)
 
         Returns:
-            List of MarketDataCache instances ordered by date
+            List of MarketDataCache instances or dicts ordered by date
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_market_data(symbol, start_date, end_date)
+
         session = get_scoped_session()
         return session.query(cls).filter(
             cls.symbol == symbol,
@@ -91,8 +95,12 @@ class MarketDataCache(Base):
             symbol: Stock ticker symbol
 
         Returns:
-            MarketDataCache instance or None
+            MarketDataCache instance or dict or None
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_latest_market_data(symbol)
+
         session = get_scoped_session()
         return session.query(cls).filter_by(symbol=symbol)\
             .order_by(cls.date.desc())\
@@ -109,6 +117,11 @@ class MarketDataCache(Base):
         Returns:
             Set of date objects
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            data = storage.get_market_data(symbol)
+            return {d.get('date') for d in data if d.get('date')}
+
         session = get_scoped_session()
         results = session.query(cls.date)\
             .filter_by(symbol=symbol)\
@@ -123,6 +136,11 @@ class MarketDataCache(Base):
         Args:
             records: List of dicts with symbol, date, open, high, low, close, adj_close, volume
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.bulk_insert_market_data(records)
+            return
+
         session = get_scoped_session()
         for record in records:
             # Check if record exists
@@ -158,11 +176,21 @@ class MarketDataCache(Base):
     @classmethod
     def delete_symbol_cache(cls, symbol):
         """Delete all cached data for a symbol."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.delete_market_data(symbol)
+            return
+
         session = get_scoped_session()
         return session.query(cls).filter_by(symbol=symbol).delete()
 
     @classmethod
     def delete_all_cache(cls):
         """Delete all cached market data."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.delete_market_data()
+            return
+
         session = get_scoped_session()
         return session.query(cls).delete()

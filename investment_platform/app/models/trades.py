@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import Column, Integer, String, Numeric, DateTime
 
-from app.database import Base, get_scoped_session
+from app.database import Base, get_scoped_session, is_csv_backend, get_csv_storage
 
 
 class TradesHistory(Base):
@@ -79,8 +79,12 @@ class TradesHistory(Base):
             limit: Maximum number of trades to return
 
         Returns:
-            List of TradesHistory instances
+            List of TradesHistory instances or dicts (if CSV backend)
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_trades(user_id, limit=limit)
+
         session = get_scoped_session()
         return session.query(cls).filter_by(user_id=user_id)\
             .order_by(cls.timestamp.desc())\
@@ -97,6 +101,10 @@ class TradesHistory(Base):
             trade_type: 'buy', 'sell', or None for all
             limit: Maximum number of trades to return
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_trades(user_id, limit=limit, trade_type=trade_type)
+
         session = get_scoped_session()
         query = session.query(cls).filter_by(user_id=user_id)
         if trade_type:
@@ -106,11 +114,20 @@ class TradesHistory(Base):
     @classmethod
     def delete_user_trades(cls, user_id='default'):
         """Delete all trades for a user (used in portfolio reset)."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.delete_user_trades(user_id)
+            return
+
         session = get_scoped_session()
         session.query(cls).filter_by(user_id=user_id).delete()
 
     @classmethod
     def get_trade_count(cls, user_id='default'):
         """Get total number of trades for a user."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_trade_count(user_id)
+
         session = get_scoped_session()
         return session.query(cls).filter_by(user_id=user_id).count()

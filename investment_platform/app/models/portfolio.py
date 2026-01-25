@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import Column, Integer, String, Numeric, SmallInteger, DateTime
 
-from app.database import Base, get_scoped_session
+from app.database import Base, get_scoped_session, is_csv_backend, get_csv_storage
 
 
 class PortfolioState(Base):
@@ -64,8 +64,12 @@ class PortfolioState(Base):
             user_id: User identifier
 
         Returns:
-            PortfolioState instance
+            PortfolioState instance or dict (if CSV backend)
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_or_create_portfolio(user_id)
+
         session = get_scoped_session()
         portfolio = session.query(cls).filter_by(user_id=user_id).first()
         if not portfolio:

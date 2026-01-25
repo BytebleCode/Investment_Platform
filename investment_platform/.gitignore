@@ -63,3 +63,7 @@ Thumbs.db
 # Project specific
 instance/
 migrations/versions/*.pyc
+
+# CSV data files (but keep .gitkeep)
+data/*.csv
+!data/.gitkeep

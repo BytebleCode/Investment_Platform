@@ -6,10 +6,13 @@ Loads sensitive credentials from environment variables.
 """
 import os
 from datetime import timedelta
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, use system environment variables
 
 
 class Config:
@@ -75,6 +78,12 @@ class Config:
 
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+    # Storage Backend: 'sqlite', 'db2', or 'csv'
+    STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'sqlite')
+
+    # CSV Storage Directory (relative to app root)
+    CSV_DATA_DIR = os.getenv('CSV_DATA_DIR', 'data')
 
 
 class DevelopmentConfig(Config):

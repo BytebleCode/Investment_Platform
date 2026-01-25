@@ -6,7 +6,7 @@ Tracks cache status for each symbol to enable smart cache refresh.
 from datetime import datetime, date, timezone
 from sqlalchemy import Column, Integer, String, DateTime, Date
 
-from app.database import Base, get_scoped_session
+from app.database import Base, get_scoped_session, is_csv_backend, get_csv_storage
 
 
 class MarketDataMetadata(Base):
@@ -117,8 +117,12 @@ class MarketDataMetadata(Base):
             symbol: Stock ticker symbol
 
         Returns:
-            MarketDataMetadata instance
+            MarketDataMetadata instance or dict (if CSV backend)
         """
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_or_create_market_metadata(symbol)
+
         session = get_scoped_session()
         metadata = session.query(cls).filter_by(symbol=symbol).first()
         if not metadata:
@@ -130,6 +134,10 @@ class MarketDataMetadata(Base):
     @classmethod
     def get_all_symbols(cls):
         """Get list of all symbols with cached data."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_all_symbols()
+
         session = get_scoped_session()
         results = session.query(cls.symbol).all()
         return [r[0] for r in results]
@@ -147,6 +155,10 @@ class MarketDataMetadata(Base):
         """
         if before_date is None:
             before_date = date.today()
+
+        if is_csv_backend():
+            storage = get_csv_storage()
+            return storage.get_stale_symbols(before_date)
 
         session = get_scoped_session()
         results = session.query(cls).filter(
@@ -173,5 +185,9 @@ class MarketDataMetadata(Base):
     @classmethod
     def delete_metadata(cls, symbol):
         """Delete metadata for a symbol."""
+        if is_csv_backend():
+            # For CSV, metadata is auto-managed
+            return
+
         session = get_scoped_session()
         return session.query(cls).filter_by(symbol=symbol).delete()
