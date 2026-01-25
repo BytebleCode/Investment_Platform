@@ -2,14 +2,18 @@
 Backtest API Routes
 
 Endpoints for running strategy backtests against historical data.
+Uses real market data from Yahoo Finance with caching to avoid rate limits.
 """
 from flask import Blueprint, jsonify, request
 from datetime import datetime, date, timedelta, timezone
 import uuid
-from decimal import Decimal
+import logging
 
 from app.database import is_csv_backend, get_csv_storage
 from app.data.strategies import STRATEGIES, STRATEGY_IDS
+from app.services.market_data_service import get_market_data_service
+
+logger = logging.getLogger(__name__)
 
 backtest_bp = Blueprint('backtest', __name__)
 
@@ -17,15 +21,47 @@ backtest_bp = Blueprint('backtest', __name__)
 _backtest_results = {}
 
 
+def fetch_historical_data(symbols, start_date, end_date):
+    """
+    Fetch historical data for multiple symbols with caching.
+
+    Args:
+        symbols: List of stock ticker symbols
+        start_date: Start date for historical data
+        end_date: End date for historical data
+
+    Returns:
+        Dict of {symbol: DataFrame} with OHLCV data
+    """
+    service = get_market_data_service()
+
+    logger.info(f"Fetching historical data for {len(symbols)} symbols from {start_date} to {end_date}")
+
+    # Fetch data for all symbols (service handles caching)
+    data = service.fetch_multiple_symbols(symbols, start_date, end_date)
+
+    # Log cache status
+    for symbol in symbols:
+        status = service.get_cache_status(symbol)
+        if isinstance(status, dict):
+            logger.info(f"{symbol}: {status.get('total_records', 0)} records cached, "
+                       f"range: {status.get('earliest_date')} to {status.get('latest_date')}")
+
+    return data
+
+
 def run_backtest(strategy_id, start_date, end_date, initial_capital):
     """
-    Run a backtest simulation for a given strategy.
+    Run a backtest simulation for a given strategy using real historical data.
 
-    This is a simplified backtest that:
-    1. Simulates buying/selling based on strategy rules
-    2. Calculates daily portfolio values
-    3. Returns performance metrics
+    This backtest:
+    1. Fetches real historical OHLCV data from Yahoo Finance (with caching)
+    2. Simulates buying/selling based on simple moving average crossover strategy
+    3. Calculates daily portfolio values
+    4. Returns performance metrics
     """
+    import math
+
     # Get strategy config
     strategy = STRATEGIES.get(strategy_id)
     if not strategy:
@@ -33,97 +69,174 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital):
 
     # Get strategy symbols
     symbols = strategy.get('stocks', ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META'])
+    max_position_pct = strategy.get('max_position_pct', 0.15)
+    target_investment_ratio = strategy.get('target_investment_ratio', 0.7)
 
-    # Simulate daily portfolio values
-    # For now, use a simple random walk simulation since we may not have historical data
-    import random
-    random.seed(hash(strategy_id + str(start_date)))
+    # Fetch real historical data
+    # Request extra days before start_date for moving average calculation
+    ma_period = 20  # 20-day moving average
+    fetch_start = start_date - timedelta(days=ma_period + 10)  # Add buffer for weekends
 
-    # Strategy characteristics affect simulation
-    # risk_level is 1-5 in the strategy config
-    risk_level = strategy.get('risk_level', 3)
-    volatility = strategy.get('volatility', 0.01)
-    drift = strategy.get('daily_drift', 0.00035)
+    historical_data = fetch_historical_data(symbols, fetch_start, end_date)
 
-    # Calculate number of trading days
-    delta = end_date - start_date
-    num_days = delta.days
-    trading_days = int(num_days * 252 / 365)  # approx trading days
+    # Check if we got any data
+    valid_symbols = [s for s in symbols if s in historical_data and not historical_data[s].empty]
 
-    # Generate equity curve
+    if not valid_symbols:
+        logger.error(f"No historical data available for any symbols in {strategy_id}")
+        raise ValueError(f"No market data available for strategy '{strategy_id}'. Please ensure you have internet connection to fetch data from Yahoo Finance.")
+
+    logger.info(f"Running backtest with real data for {len(valid_symbols)} symbols: {valid_symbols}")
+
+    # Initialize portfolio
+    cash = float(initial_capital)
+    positions = {}  # {symbol: {'quantity': int, 'avg_cost': float}}
+
+    # Generate equity curve and trades
     equity_curve = []
     trades = []
-    current_value = float(initial_capital)
-    peak_value = current_value
+
+    # Get all trading days in range
+    all_dates = set()
+    for symbol in valid_symbols:
+        df = historical_data[symbol]
+        for d in df.index:
+            if isinstance(d, date) and start_date <= d <= end_date:
+                all_dates.add(d)
+
+    trading_days = sorted(all_dates)
+
+    if not trading_days:
+        logger.error("No trading days found in date range")
+        raise ValueError(f"No trading days found between {start_date} and {end_date}. Please check your date range.")
+
+    # Calculate moving averages for each symbol
+    moving_averages = {}
+    for symbol in valid_symbols:
+        df = historical_data[symbol]
+        if 'adj_close' in df.columns:
+            ma = df['adj_close'].rolling(window=ma_period).mean()
+            moving_averages[symbol] = ma
+
+    # Track metrics
+    peak_value = initial_capital
     max_drawdown = 0
 
-    current_date = start_date
-    day_count = 0
-    position_held = False
-    entry_price = 0
-    current_symbol = symbols[0]
+    # Run simulation day by day
+    for current_date in trading_days:
+        # Calculate current portfolio value
+        holdings_value = 0
+        for symbol, pos in positions.items():
+            if symbol in historical_data:
+                df = historical_data[symbol]
+                if current_date in df.index:
+                    price = float(df.loc[current_date, 'adj_close'])
+                    holdings_value += pos['quantity'] * price
 
-    while current_date <= end_date:
-        # Skip weekends
-        if current_date.weekday() >= 5:
-            current_date += timedelta(days=1)
-            continue
+        portfolio_value = cash + holdings_value
 
-        # Random daily return based on strategy volatility
-        daily_return = random.gauss(drift, volatility)
-
-        # Apply return
-        prev_value = current_value
-        current_value *= (1 + daily_return)
-
-        # Track peak and drawdown
-        if current_value > peak_value:
-            peak_value = current_value
-        drawdown = (peak_value - current_value) / peak_value
+        # Track drawdown
+        if portfolio_value > peak_value:
+            peak_value = portfolio_value
+        drawdown = (peak_value - portfolio_value) / peak_value if peak_value > 0 else 0
         if drawdown > max_drawdown:
             max_drawdown = drawdown
 
+        # Record equity curve point
         equity_curve.append({
             'date': current_date.isoformat(),
-            'value': round(current_value, 2)
+            'value': round(portfolio_value, 2)
         })
 
-        # Simulate trades based on strategy rules
-        # Buy signal: value dropped more than 2% from recent high
-        # Sell signal: value rose more than 3% from entry
-        if not position_held and random.random() < 0.05:  # 5% chance to buy
-            position_held = True
-            entry_price = current_value
-            current_symbol = random.choice(symbols)
-            qty = int(current_value * 0.1 / 100)  # 10% position, assume $100 price
-            if qty > 0:
+        # Trading logic: Simple moving average crossover
+        for symbol in valid_symbols:
+            if symbol not in historical_data:
+                continue
+
+            df = historical_data[symbol]
+            if current_date not in df.index:
+                continue
+
+            price = float(df.loc[current_date, 'adj_close'])
+
+            # Get moving average for this date
+            if symbol in moving_averages and current_date in moving_averages[symbol].index:
+                ma = moving_averages[symbol].loc[current_date]
+                if ma is None or (hasattr(ma, '__len__') and len(ma) == 0):
+                    continue
+                ma = float(ma) if not (isinstance(ma, float) and math.isnan(ma)) else None
+                if ma is None:
+                    continue
+            else:
+                continue
+
+            current_position = positions.get(symbol, {'quantity': 0, 'avg_cost': 0})
+
+            # Buy signal: Price crosses above MA and we have room to buy
+            if price > ma * 1.01:  # 1% above MA
+                if current_position['quantity'] == 0:
+                    # Calculate position size
+                    max_investment = portfolio_value * max_position_pct
+                    available_cash = cash * target_investment_ratio
+                    invest_amount = min(max_investment, available_cash)
+
+                    if invest_amount > 100 and cash >= invest_amount:  # Min $100 trade
+                        quantity = int(invest_amount / price)
+                        if quantity > 0:
+                            cost = quantity * price
+                            fee = cost * 0.001  # 0.1% fee
+                            total_cost = cost + fee
+
+                            if cash >= total_cost:
+                                cash -= total_cost
+                                positions[symbol] = {
+                                    'quantity': quantity,
+                                    'avg_cost': price
+                                }
+
+                                trades.append({
+                                    'date': current_date.isoformat(),
+                                    'type': 'buy',
+                                    'symbol': symbol,
+                                    'quantity': quantity,
+                                    'price': round(price, 2),
+                                    'value': round(portfolio_value, 2)
+                                })
+
+            # Sell signal: Price crosses below MA
+            elif price < ma * 0.99 and current_position['quantity'] > 0:  # 1% below MA
+                quantity = current_position['quantity']
+                revenue = quantity * price
+                fee = revenue * 0.001  # 0.1% fee
+                net_revenue = revenue - fee
+
+                cash += net_revenue
+                del positions[symbol]
+
                 trades.append({
                     'date': current_date.isoformat(),
-                    'type': 'buy',
-                    'symbol': current_symbol,
-                    'quantity': qty,
-                    'price': round(100 * (1 + random.gauss(0, 0.02)), 2),
-                    'value': round(current_value, 2)
+                    'type': 'sell',
+                    'symbol': symbol,
+                    'quantity': quantity,
+                    'price': round(price, 2),
+                    'value': round(cash + holdings_value, 2)
                 })
-        elif position_held and random.random() < 0.04:  # 4% chance to sell
-            position_held = False
-            qty = trades[-1]['quantity'] if trades else 10
-            trades.append({
-                'date': current_date.isoformat(),
-                'type': 'sell',
-                'symbol': current_symbol,
-                'quantity': qty,
-                'price': round(100 * (1 + random.gauss(0.02, 0.02)), 2),
-                'value': round(current_value, 2)
-            })
 
-        current_date += timedelta(days=1)
-        day_count += 1
+    # Calculate final portfolio value
+    final_holdings_value = 0
+    for symbol, pos in positions.items():
+        if symbol in historical_data:
+            df = historical_data[symbol]
+            if trading_days and trading_days[-1] in df.index:
+                price = float(df.loc[trading_days[-1], 'adj_close'])
+                final_holdings_value += pos['quantity'] * price
 
-    # Calculate final metrics
-    total_return = ((current_value - initial_capital) / initial_capital) * 100
-    trading_days_actual = len(equity_curve)
-    annualized_return = total_return * (252 / trading_days_actual) if trading_days_actual > 0 else 0
+    final_value = cash + final_holdings_value
+
+    # Calculate metrics
+    total_return = ((final_value - initial_capital) / initial_capital) * 100
+    trading_days_count = len(equity_curve)
+    annualized_return = total_return * (252 / trading_days_count) if trading_days_count > 0 else 0
 
     # Calculate volatility from daily returns
     if len(equity_curve) > 1:
@@ -135,7 +248,6 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital):
                 daily_returns.append((curr_val - prev_val) / prev_val)
 
         if daily_returns:
-            import math
             mean_return = sum(daily_returns) / len(daily_returns)
             variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
             daily_volatility = math.sqrt(variance)
@@ -149,14 +261,18 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital):
     risk_free_rate = 0.04
     sharpe_ratio = (annualized_return / 100 - risk_free_rate) / annualized_volatility if annualized_volatility > 0 else 0
 
-    # Win rate
+    # Win rate calculation
     wins = 0
     losses = 0
-    for i in range(0, len(trades) - 1, 2):
-        if i + 1 < len(trades):
-            buy_price = trades[i]['price']
-            sell_price = trades[i + 1]['price']
-            if sell_price > buy_price:
+    buy_trades = [t for t in trades if t['type'] == 'buy']
+    sell_trades = [t for t in trades if t['type'] == 'sell']
+
+    for sell in sell_trades:
+        # Find matching buy
+        matching_buys = [b for b in buy_trades if b['symbol'] == sell['symbol'] and b['date'] < sell['date']]
+        if matching_buys:
+            buy = matching_buys[-1]  # Most recent buy before this sell
+            if sell['price'] > buy['price']:
                 wins += 1
             else:
                 losses += 1
@@ -168,10 +284,12 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital):
         'period': {
             'start': start_date.isoformat(),
             'end': end_date.isoformat(),
-            'trading_days': trading_days_actual
+            'trading_days': trading_days_count
         },
         'initial_capital': initial_capital,
-        'final_value': round(current_value, 2),
+        'final_value': round(final_value, 2),
+        'data_source': 'yahoo_finance',
+        'symbols_used': valid_symbols,
         'metrics': {
             'total_return': round(total_return, 2),
             'annualized_return': round(annualized_return, 2),
@@ -190,7 +308,9 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital):
 def run_backtest_endpoint():
     """
     POST /api/backtest/run
-    Run a backtest for a strategy.
+    Run a backtest for a strategy using real historical data.
+
+    Data is fetched from Yahoo Finance and cached to avoid rate limits.
 
     Request body:
     {
@@ -246,6 +366,7 @@ def run_backtest_endpoint():
         return jsonify(result)
 
     except Exception as e:
+        logger.error(f"Backtest error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -284,4 +405,30 @@ def get_available_strategies():
     return jsonify({
         'strategies': strategies,
         'count': len(strategies)
+    })
+
+
+@backtest_bp.route('/cache/status', methods=['GET'])
+def get_cache_status():
+    """
+    GET /api/backtest/cache/status
+    Get cache status for market data used in backtesting.
+    """
+    service = get_market_data_service()
+
+    # Get all strategy symbols
+    all_symbols = set()
+    for strategy in STRATEGIES.values():
+        all_symbols.update(strategy.get('stocks', []))
+
+    cache_info = []
+    for symbol in sorted(all_symbols):
+        status = service.get_cache_status(symbol)
+        if isinstance(status, dict):
+            cache_info.append(status)
+
+    return jsonify({
+        'symbols': cache_info,
+        'total_symbols': len(all_symbols),
+        'cached_symbols': len([c for c in cache_info if c.get('total_records', 0) > 0])
     })

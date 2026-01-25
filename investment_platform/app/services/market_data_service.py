@@ -21,7 +21,7 @@ except ImportError:
 
 import pytz
 
-from app.database import get_scoped_session
+from app.database import get_scoped_session, is_csv_backend, get_csv_storage
 from app.models import MarketDataCache, MarketDataMetadata
 from app.data import get_stock_info, get_stock_beta
 
@@ -224,6 +224,21 @@ class MarketDataService:
 
     def _update_metadata(self, symbol: str):
         """Update metadata after cache changes."""
+        if is_csv_backend():
+            storage = get_csv_storage()
+            data = storage.get_market_data(symbol)
+            if data:
+                dates = [d.get('date') for d in data if d.get('date')]
+                if dates:
+                    storage.update_market_metadata(
+                        symbol,
+                        earliest_date=min(dates),
+                        latest_date=max(dates),
+                        total_records=len(data),
+                        fetch_status='complete'
+                    )
+            return
+
         metadata = MarketDataMetadata.get_or_create(symbol)
 
         # Get date range from cache
@@ -262,15 +277,27 @@ class MarketDataService:
 
         data = []
         for r in records:
-            data.append({
-                'date': r.date,
-                'open': float(r.open) if r.open else None,
-                'high': float(r.high) if r.high else None,
-                'low': float(r.low) if r.low else None,
-                'close': float(r.close),
-                'adj_close': float(r.adj_close),
-                'volume': r.volume
-            })
+            # Handle both ORM objects and dicts (from CSV backend)
+            if isinstance(r, dict):
+                data.append({
+                    'date': r.get('date'),
+                    'open': float(r.get('open')) if r.get('open') else None,
+                    'high': float(r.get('high')) if r.get('high') else None,
+                    'low': float(r.get('low')) if r.get('low') else None,
+                    'close': float(r.get('close')),
+                    'adj_close': float(r.get('adj_close')),
+                    'volume': r.get('volume')
+                })
+            else:
+                data.append({
+                    'date': r.date,
+                    'open': float(r.open) if r.open else None,
+                    'high': float(r.high) if r.high else None,
+                    'low': float(r.low) if r.low else None,
+                    'close': float(r.close),
+                    'adj_close': float(r.adj_close),
+                    'volume': r.volume
+                })
 
         df = pd.DataFrame(data)
         df.set_index('date', inplace=True)
@@ -288,22 +315,38 @@ class MarketDataService:
         Returns:
             List of (start, end) tuples for missing ranges
         """
-        session = get_scoped_session()
-        metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol).first()
+        if is_csv_backend():
+            storage = get_csv_storage()
+            metadata = storage.get_market_metadata(symbol)
+        else:
+            session = get_scoped_session()
+            metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol).first()
 
-        if not metadata or not metadata.earliest_date:
+        # Handle both dict and ORM object
+        if metadata:
+            if isinstance(metadata, dict):
+                earliest = metadata.get('earliest_date')
+                latest = metadata.get('latest_date')
+            else:
+                earliest = metadata.earliest_date
+                latest = metadata.latest_date
+        else:
+            earliest = None
+            latest = None
+
+        if not earliest:
             # No data cached, need entire range
             return [(start_date, end_date)]
 
         missing = []
 
         # Gap at the beginning?
-        if start_date < metadata.earliest_date:
-            missing.append((start_date, metadata.earliest_date - timedelta(days=1)))
+        if start_date < earliest:
+            missing.append((start_date, earliest - timedelta(days=1)))
 
         # Gap at the end?
-        if end_date > metadata.latest_date:
-            missing.append((metadata.latest_date + timedelta(days=1), end_date))
+        if end_date > latest:
+            missing.append((latest + timedelta(days=1), end_date))
 
         return missing
 
@@ -353,19 +396,38 @@ class MarketDataService:
         latest = MarketDataCache.get_latest_price(symbol)
 
         # Check if cache is fresh enough
-        if latest and latest.date >= self.get_last_trading_day() - timedelta(days=1):
-            return {
-                'symbol': symbol,
-                'price': float(latest.adj_close),
-                'close': float(latest.close),
-                'open': float(latest.open) if latest.open else None,
-                'high': float(latest.high) if latest.high else None,
-                'low': float(latest.low) if latest.low else None,
-                'volume': latest.volume,
-                'date': latest.date.isoformat(),
-                'source': 'cache',
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
+        if latest:
+            # Handle both dict and ORM object
+            if isinstance(latest, dict):
+                latest_date = latest.get('date')
+                adj_close = latest.get('adj_close')
+                close = latest.get('close')
+                open_price = latest.get('open')
+                high = latest.get('high')
+                low = latest.get('low')
+                volume = latest.get('volume')
+            else:
+                latest_date = latest.date
+                adj_close = latest.adj_close
+                close = latest.close
+                open_price = latest.open
+                high = latest.high
+                low = latest.low
+                volume = latest.volume
+
+            if latest_date and latest_date >= self.get_last_trading_day() - timedelta(days=1):
+                return {
+                    'symbol': symbol,
+                    'price': float(adj_close) if adj_close else 0,
+                    'close': float(close) if close else 0,
+                    'open': float(open_price) if open_price else None,
+                    'high': float(high) if high else None,
+                    'low': float(low) if low else None,
+                    'volume': volume,
+                    'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
+                    'source': 'cache',
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }
 
         # Try to fetch fresh data
         try:
@@ -393,38 +455,18 @@ class MarketDataService:
         except Exception as e:
             logger.warning(f"Could not fetch current price for {symbol}: {e}")
 
-        # Fall back to simulation
-        return self._generate_simulated_price(symbol)
-
-    def _generate_simulated_price(self, symbol: str) -> dict:
-        """
-        Generate a simulated price as fallback.
-
-        Uses stock universe base price and adds random variation.
-        """
-        from app.services.price_generator import generate_price
-
-        stock_info = get_stock_info(symbol)
-        if stock_info:
-            base_price = stock_info['base_price']
-            beta = stock_info['beta']
-        else:
-            base_price = 100.0
-            beta = 1.0
-
-        # Generate slightly randomized price
-        simulated_price = generate_price(base_price, beta, volatility=0.02)
-
+        # No data available - return error info
         return {
             'symbol': symbol,
-            'price': simulated_price,
-            'close': simulated_price,
+            'price': None,
+            'close': None,
             'open': None,
             'high': None,
             'low': None,
             'volume': None,
-            'date': date.today().isoformat(),
-            'source': 'simulated',
+            'date': None,
+            'source': 'unavailable',
+            'error': f'No market data available for {symbol}. Please check your internet connection.',
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
 
