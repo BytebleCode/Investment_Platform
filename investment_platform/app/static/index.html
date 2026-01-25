@@ -3,155 +3,804 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Investment Platform</title>
+    <title>Investment Platform | Portfolio Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
-            min-height: 100vh;
-            padding: 20px;
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #1f1f35;
+            --border-color: #2a2a4a;
+            --accent-cyan: #00d4ff;
+            --accent-purple: #7b2cbf;
+            --accent-green: #00ff88;
+            --accent-red: #ff4757;
+            --accent-amber: #f59e0b;
+            --text-primary: #ffffff;
+            --text-secondary: #8892b0;
+            --text-muted: #4a5568;
+            --glow-cyan: 0 0 20px rgba(0, 212, 255, 0.3);
+            --glow-purple: 0 0 20px rgba(123, 44, 191, 0.3);
+            --glow-green: 0 0 15px rgba(0, 255, 136, 0.3);
+            --glow-red: 0 0 15px rgba(255, 71, 87, 0.3);
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #4ecca3; margin-bottom: 20px; }
-        h2 { color: #4ecca3; margin: 20px 0 10px; font-size: 1.2em; }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(123, 44, 191, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(0, 212, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(0, 212, 255, 0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Grid pattern overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Navigation */
+        .navbar {
+            background: rgba(18, 18, 26, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            letter-spacing: 2px;
+        }
+
+        .logo span {
+            color: var(--text-primary);
+        }
+
+        .nav-status {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            box-shadow: var(--glow-green);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.offline {
+            background: var(--accent-red);
+            box-shadow: var(--glow-red);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .nav-time {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 40px 0;
+            margin-bottom: 30px;
+        }
+
+        .hero-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .hero-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
+            margin-bottom: 15px;
+        }
+
+        .hero-change {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            padding: 8px 20px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .hero-change.positive {
+            color: var(--accent-green);
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .hero-change.negative {
+            color: var(--accent-red);
+            background: rgba(255, 71, 87, 0.1);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+        }
+
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(26, 26, 46, 0.8) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 25px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-value.positive { color: var(--accent-green); }
+        .stat-value.negative { color: var(--accent-red); }
+        .stat-value.cyan { color: var(--accent-cyan); }
+        .stat-value.purple { color: var(--accent-purple); }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
         .card {
-            background: #16213e;
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(26, 26, 46, 0.9) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Buttons */
+        .btn {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 10px 20px;
             border-radius: 8px;
-            padding: 20px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, #00a8cc 100%);
+            color: var(--bg-primary);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--accent-purple);
+            border: 1px solid var(--accent-purple);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(123, 44, 191, 0.1);
+            box-shadow: var(--glow-purple);
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 71, 87, 0.1);
+            box-shadow: var(--glow-red);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table td {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            padding: 15px 12px;
+            border-bottom: 1px solid rgba(42, 42, 74, 0.5);
+            color: var(--text-secondary);
+        }
+
+        .data-table tr:hover td {
+            background: rgba(0, 212, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .data-table .symbol {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .data-table .buy { color: var(--accent-green); }
+        .data-table .sell { color: var(--accent-red); }
+
+        /* Form Inputs */
+        .form-group {
             margin-bottom: 20px;
         }
-        .status { display: flex; gap: 20px; flex-wrap: wrap; }
-        .status-item {
-            background: #0f3460;
-            padding: 15px 25px;
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 15px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Strategy Cards */
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+        }
+
+        .strategy-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .strategy-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--strategy-color, var(--accent-cyan));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .strategy-card:hover {
+            border-color: var(--strategy-color, var(--accent-cyan));
+            transform: translateY(-3px);
+        }
+
+        .strategy-card:hover::after {
+            transform: scaleX(1);
+        }
+
+        .strategy-card.active {
+            border-color: var(--strategy-color, var(--accent-cyan));
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+        }
+
+        .strategy-card.active::after {
+            transform: scaleX(1);
+        }
+
+        .strategy-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 5px;
+        }
+
+        .strategy-risk {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .strategy-metrics {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .strategy-metric {
             text-align: center;
         }
-        .status-item .label { font-size: 0.8em; color: #888; }
-        .status-item .value { font-size: 1.5em; font-weight: bold; margin-top: 5px; }
-        .ok { color: #4ecca3; }
-        .error { color: #e94560; }
-        .warning { color: #f9b208; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #0f3460; }
-        th { color: #4ecca3; }
-        .btn {
-            background: #4ecca3;
-            color: #1a1a2e;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-right: 10px;
-            margin-bottom: 10px;
+
+        .strategy-metric-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-cyan);
         }
-        .btn:hover { background: #3db892; }
-        .btn-danger { background: #e94560; color: white; }
-        .btn-danger:hover { background: #d63050; }
-        input, select {
-            background: #0f3460;
-            border: 1px solid #4ecca3;
-            color: #eee;
-            padding: 10px;
-            border-radius: 5px;
-            margin-right: 10px;
-            margin-bottom: 10px;
+
+        .strategy-metric-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
         }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; color: #888; }
-        .message { padding: 10px; border-radius: 5px; margin: 10px 0; }
-        .message.success { background: #1e4d3d; color: #4ecca3; }
-        .message.error { background: #4d1e2a; color: #e94560; }
-        .loading { color: #888; font-style: italic; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .money { font-family: monospace; }
-        .positive { color: #4ecca3; }
-        .negative { color: #e94560; }
+
+        /* Messages */
+        .message {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: var(--accent-green);
+        }
+
+        .message.error {
+            background: rgba(255, 71, 87, 0.1);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+            color: var(--accent-red);
+        }
+
+        /* Loading States */
+        .loading {
+            color: var(--text-muted);
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .loading::before {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+
+        /* Chart Placeholder */
+        .chart-container {
+            height: 300px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .chart-placeholder {
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-cyan);
+        }
+
+        /* Utility */
+        .text-center { text-align: center; }
+        .mb-20 { margin-bottom: 20px; }
+        .mt-20 { margin-top: 20px; }
+
+        /* Hexagon decoration */
+        .hex-decoration {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            border: 1px solid rgba(0, 212, 255, 0.1);
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .hex-1 { top: 10%; right: 5%; transform: rotate(15deg); }
+        .hex-2 { bottom: 20%; left: 3%; transform: rotate(-10deg); width: 150px; height: 150px; }
+        .hex-3 { top: 40%; right: 10%; transform: rotate(30deg); width: 80px; height: 80px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Investment Platform</h1>
+    <!-- Decorative hexagons -->
+    <div class="hex-decoration hex-1"></div>
+    <div class="hex-decoration hex-2"></div>
+    <div class="hex-decoration hex-3"></div>
 
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="logo">NEXUS<span>INVEST</span></div>
+        <div class="nav-status">
+            <div class="status-dot" id="status-indicator"></div>
+            <span id="status-text" style="color: var(--text-secondary); font-size: 0.85rem;">Connecting...</span>
+            <span class="nav-time" id="current-time"></span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Message Area -->
         <div id="message"></div>
 
-        <!-- System Status -->
-        <div class="card">
-            <h2>System Status</h2>
-            <div class="status" id="health-status">
-                <div class="loading">Loading...</div>
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-label">Total Portfolio Value</div>
+            <div class="hero-value" id="hero-total">$0.00</div>
+            <div class="hero-change positive" id="hero-change">+0.00%</div>
+        </section>
+
+        <!-- Stats Row -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Available Cash</div>
+                <div class="stat-value cyan" id="stat-cash">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Holdings Value</div>
+                <div class="stat-value" id="stat-holdings">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Realized Gains</div>
+                <div class="stat-value" id="stat-gains">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Strategy</div>
+                <div class="stat-value purple" id="stat-strategy">-</div>
             </div>
         </div>
 
-        <!-- Portfolio Summary -->
-        <div class="card">
-            <h2>Portfolio Summary</h2>
-            <div class="status" id="portfolio-summary">
-                <div class="loading">Loading...</div>
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Performance Chart -->
+                <div class="card mb-20">
+                    <div class="card-header">
+                        <h2 class="card-title">Performance</h2>
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-secondary">1D</button>
+                            <button class="btn btn-sm btn-secondary">1W</button>
+                            <button class="btn btn-sm btn-primary">1M</button>
+                            <button class="btn btn-sm btn-secondary">1Y</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-placeholder">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">&#x1F4C8;</div>
+                            <div>Chart will appear here</div>
+                            <div style="font-size: 0.8rem; margin-top: 5px;">Coming in next update</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Holdings -->
+                <div class="card mb-20">
+                    <div class="card-header">
+                        <h2 class="card-title">Holdings</h2>
+                    </div>
+                    <div id="holdings-list">
+                        <div class="loading">Loading holdings...</div>
+                    </div>
+                </div>
+
+                <!-- Recent Trades -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Trades</h2>
+                    </div>
+                    <div id="trades-list">
+                        <div class="loading">Loading trades...</div>
+                    </div>
+                </div>
             </div>
-            <div style="margin-top: 15px;">
-                <button class="btn" onclick="initPortfolio()">Initialize Portfolio</button>
-                <button class="btn btn-danger" onclick="resetPortfolio()">Reset Portfolio</button>
+
+            <!-- Right Column -->
+            <div class="right-column">
+                <!-- Quick Actions -->
+                <div class="card mb-20">
+                    <div class="card-header">
+                        <h2 class="card-title">Quick Actions</h2>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="initPortfolio()">Initialize</button>
+                        <button class="btn btn-danger" onclick="resetPortfolio()">Reset</button>
+                    </div>
+                </div>
+
+                <!-- Execute Trade -->
+                <div class="card mb-20">
+                    <div class="card-header">
+                        <h2 class="card-title">Execute Trade</h2>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Symbol</label>
+                        <input type="text" class="form-input" id="trade-symbol" placeholder="AAPL">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select class="form-select" id="trade-type">
+                            <option value="buy">BUY</option>
+                            <option value="sell">SELL</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-input" id="trade-quantity" placeholder="10">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Price</label>
+                        <input type="number" class="form-input" id="trade-price" placeholder="150.00" step="0.01">
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%;" onclick="executeTrade()">Execute Trade</button>
+                </div>
+
+                <!-- System Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">System Status</h2>
+                    </div>
+                    <div id="system-status">
+                        <div class="loading">Checking status...</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="grid">
-            <!-- Holdings -->
-            <div class="card">
-                <h2>Holdings</h2>
-                <div id="holdings-list">
-                    <div class="loading">Loading...</div>
-                </div>
-            </div>
-
-            <!-- Trade Form -->
-            <div class="card">
-                <h2>Execute Trade</h2>
-                <div class="form-group">
-                    <label>Symbol</label>
-                    <input type="text" id="trade-symbol" placeholder="AAPL" style="width: 100%;">
-                </div>
-                <div class="form-group">
-                    <label>Type</label>
-                    <select id="trade-type" style="width: 100%;">
-                        <option value="buy">Buy</option>
-                        <option value="sell">Sell</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Quantity</label>
-                    <input type="number" id="trade-quantity" placeholder="10" style="width: 100%;">
-                </div>
-                <div class="form-group">
-                    <label>Price</label>
-                    <input type="number" id="trade-price" placeholder="150.00" step="0.01" style="width: 100%;">
-                </div>
-                <button class="btn" onclick="executeTrade()">Execute Trade</button>
-            </div>
-        </div>
-
-        <!-- Recent Trades -->
+        <!-- Strategies Section -->
         <div class="card">
-            <h2>Recent Trades</h2>
-            <div id="trades-list">
-                <div class="loading">Loading...</div>
+            <div class="card-header">
+                <h2 class="card-title">Investment Strategies</h2>
             </div>
-        </div>
-
-        <!-- Strategies -->
-        <div class="card">
-            <h2>Available Strategies</h2>
-            <div id="strategies-list">
-                <div class="loading">Loading...</div>
+            <div class="strategy-grid" id="strategies-list">
+                <div class="loading">Loading strategies...</div>
             </div>
         </div>
     </div>
 
     <script>
         const API_BASE = '/api';
+        let currentStrategy = 'balanced';
+
+        // Update time display
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent =
+                now.toLocaleTimeString('en-US', { hour12: false });
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
 
         function showMessage(text, isError = false) {
             const el = document.getElementById('message');
@@ -161,8 +810,7 @@
 
         function formatMoney(amount) {
             const num = parseFloat(amount) || 0;
-            const cls = num >= 0 ? 'positive' : 'negative';
-            return `<span class="money ${cls}">$${num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>`;
+            return '$' + num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         async function fetchAPI(endpoint, options = {}) {
@@ -180,82 +828,114 @@
 
         async function loadHealth() {
             const data = await fetchAPI('/health');
-            const el = document.getElementById('health-status');
+            const statusDot = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            const statusEl = document.getElementById('system-status');
+
             if (data.error) {
-                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                statusDot.classList.add('offline');
+                statusText.textContent = 'Offline';
+                statusEl.innerHTML = `<div style="color: var(--accent-red);">Connection Error</div>`;
                 return;
             }
-            el.innerHTML = `
-                <div class="status-item">
-                    <div class="label">Status</div>
-                    <div class="value ${data.status === 'ok' ? 'ok' : 'error'}">${data.status.toUpperCase()}</div>
+
+            statusDot.classList.remove('offline');
+            statusText.textContent = data.status === 'ok' ? 'Online' : 'Degraded';
+
+            statusEl.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: var(--text-muted);">Storage</span>
+                    <span style="color: ${data.components?.storage === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                        ${data.storage_backend || 'Unknown'}
+                    </span>
                 </div>
-                <div class="status-item">
-                    <div class="label">Storage</div>
-                    <div class="value ${data.components?.storage === 'ok' ? 'ok' : 'error'}">${data.storage_backend || 'N/A'}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">Market</div>
-                    <div class="value ${data.market_status === 'open' ? 'ok' : 'warning'}">${data.market_status?.toUpperCase() || 'N/A'}</div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Market</span>
+                    <span style="color: ${data.market_status === 'open' ? 'var(--accent-green)' : 'var(--accent-amber)'};">
+                        ${data.market_status?.toUpperCase() || 'Unknown'}
+                    </span>
                 </div>
             `;
         }
 
         async function loadPortfolio() {
             const data = await fetchAPI('/portfolio/settings');
-            const el = document.getElementById('portfolio-summary');
+
             if (data.error) {
-                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                document.getElementById('hero-total').textContent = '$0.00';
                 return;
             }
-            const totalValue = parseFloat(data.current_cash || 0) + parseFloat(data.holdings_value || 0);
-            const gain = totalValue - parseFloat(data.initial_value || 100000);
-            el.innerHTML = `
-                <div class="status-item">
-                    <div class="label">Cash</div>
-                    <div class="value">${formatMoney(data.current_cash)}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">Initial Value</div>
-                    <div class="value">${formatMoney(data.initial_value)}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">Realized Gains</div>
-                    <div class="value">${formatMoney(data.realized_gains)}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">Strategy</div>
-                    <div class="value ok">${data.current_strategy || 'N/A'}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">Initialized</div>
-                    <div class="value ${data.is_initialized ? 'ok' : 'warning'}">${data.is_initialized ? 'Yes' : 'No'}</div>
-                </div>
-            `;
+
+            const cash = parseFloat(data.current_cash) || 0;
+            const initial = parseFloat(data.initial_value) || 100000;
+            const gains = parseFloat(data.realized_gains) || 0;
+
+            // Update hero
+            document.getElementById('hero-total').textContent = formatMoney(cash);
+
+            const changePercent = ((cash - initial) / initial * 100);
+            const heroChange = document.getElementById('hero-change');
+            heroChange.textContent = (changePercent >= 0 ? '+' : '') + changePercent.toFixed(2) + '%';
+            heroChange.className = 'hero-change ' + (changePercent >= 0 ? 'positive' : 'negative');
+
+            // Update stats
+            document.getElementById('stat-cash').textContent = formatMoney(cash);
+            document.getElementById('stat-holdings').textContent = formatMoney(0); // Will be updated with holdings
+
+            const gainsEl = document.getElementById('stat-gains');
+            gainsEl.textContent = formatMoney(gains);
+            gainsEl.className = 'stat-value ' + (gains >= 0 ? 'positive' : 'negative');
+
+            document.getElementById('stat-strategy').textContent = data.current_strategy || '-';
+            currentStrategy = data.current_strategy || 'balanced';
         }
 
         async function loadHoldings() {
             const data = await fetchAPI('/holdings');
             const el = document.getElementById('holdings-list');
+
             if (data.error) {
-                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                el.innerHTML = `<div style="color: var(--accent-red);">Error loading holdings</div>`;
                 return;
             }
+
             if (!data.holdings || data.holdings.length === 0) {
-                el.innerHTML = '<p style="color:#888">No holdings yet</p>';
+                el.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#x1F4BC;</div>
+                        <div>No holdings yet</div>
+                        <div style="font-size: 0.8rem; margin-top: 5px;">Execute a trade to get started</div>
+                    </div>
+                `;
                 return;
             }
+
+            let holdingsValue = 0;
+            data.holdings.forEach(h => {
+                holdingsValue += (parseFloat(h.quantity) || 0) * (parseFloat(h.avg_cost) || 0);
+            });
+            document.getElementById('stat-holdings').textContent = formatMoney(holdingsValue);
+
             el.innerHTML = `
-                <table>
-                    <tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Value</th></tr>
-                    ${data.holdings.map(h => `
+                <table class="data-table">
+                    <thead>
                         <tr>
-                            <td><strong>${h.symbol}</strong></td>
-                            <td>${h.quantity}</td>
-                            <td class="money">$${parseFloat(h.avg_cost).toFixed(2)}</td>
-                            <td>${formatMoney(h.quantity * h.avg_cost)}</td>
+                            <th>Symbol</th>
+                            <th>Quantity</th>
+                            <th>Avg Cost</th>
+                            <th>Value</th>
                         </tr>
-                    `).join('')}
+                    </thead>
+                    <tbody>
+                        ${data.holdings.map(h => `
+                            <tr>
+                                <td class="symbol">${h.symbol}</td>
+                                <td>${parseFloat(h.quantity).toFixed(2)}</td>
+                                <td>${formatMoney(h.avg_cost)}</td>
+                                <td>${formatMoney(h.quantity * h.avg_cost)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
                 </table>
             `;
         }
@@ -263,27 +943,46 @@
         async function loadTrades() {
             const data = await fetchAPI('/trades');
             const el = document.getElementById('trades-list');
+
             if (data.error) {
-                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                el.innerHTML = `<div style="color: var(--accent-red);">Error loading trades</div>`;
                 return;
             }
+
             if (!data.trades || data.trades.length === 0) {
-                el.innerHTML = '<p style="color:#888">No trades yet</p>';
+                el.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#x1F4CA;</div>
+                        <div>No trades yet</div>
+                    </div>
+                `;
                 return;
             }
+
             el.innerHTML = `
-                <table>
-                    <tr><th>Date</th><th>Type</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Total</th></tr>
-                    ${data.trades.slice(0, 10).map(t => `
+                <table class="data-table">
+                    <thead>
                         <tr>
-                            <td>${new Date(t.timestamp).toLocaleDateString()}</td>
-                            <td class="${t.type === 'buy' ? 'ok' : 'error'}">${t.type.toUpperCase()}</td>
-                            <td><strong>${t.symbol}</strong></td>
-                            <td>${t.quantity}</td>
-                            <td class="money">$${parseFloat(t.price).toFixed(2)}</td>
-                            <td>${formatMoney(t.total)}</td>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Symbol</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th>Total</th>
                         </tr>
-                    `).join('')}
+                    </thead>
+                    <tbody>
+                        ${data.trades.slice(0, 10).map(t => `
+                            <tr>
+                                <td>${new Date(t.timestamp).toLocaleDateString()}</td>
+                                <td class="${t.type}">${t.type.toUpperCase()}</td>
+                                <td class="symbol">${t.symbol}</td>
+                                <td>${t.quantity}</td>
+                                <td>${formatMoney(t.price)}</td>
+                                <td>${formatMoney(t.total)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
                 </table>
             `;
         }
@@ -291,27 +990,57 @@
         async function loadStrategies() {
             const data = await fetchAPI('/strategies/customizations');
             const el = document.getElementById('strategies-list');
-            if (data.error) {
-                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+
+            if (data.error || !data.customizations || data.customizations.length === 0) {
+                el.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#x1F3AF;</div>
+                        <div>No strategies configured</div>
+                        <div style="font-size: 0.8rem; margin-top: 5px;">Click Initialize to create defaults</div>
+                    </div>
+                `;
                 return;
             }
-            if (!data.customizations || data.customizations.length === 0) {
-                el.innerHTML = '<p style="color:#888">No strategy customizations yet. Initialize portfolio to create defaults.</p>';
-                return;
+
+            const colors = {
+                conservative: '#22c55e',
+                growth: '#3b82f6',
+                value: '#a855f7',
+                balanced: '#f59e0b',
+                aggressive: '#ef4444'
+            };
+
+            el.innerHTML = data.customizations.map(s => `
+                <div class="strategy-card ${s.strategy_id === currentStrategy ? 'active' : ''}"
+                     style="--strategy-color: ${colors[s.strategy_id] || 'var(--accent-cyan)'};"
+                     onclick="selectStrategy('${s.strategy_id}')">
+                    <div class="strategy-name">${s.strategy_id.charAt(0).toUpperCase() + s.strategy_id.slice(1)}</div>
+                    <div class="strategy-risk">Confidence: ${s.confidence_level}%</div>
+                    <div class="strategy-metrics">
+                        <div class="strategy-metric">
+                            <div class="strategy-metric-value">${s.trade_frequency}</div>
+                            <div class="strategy-metric-label">Frequency</div>
+                        </div>
+                        <div class="strategy-metric">
+                            <div class="strategy-metric-value">${s.max_position_size}%</div>
+                            <div class="strategy-metric-label">Max Pos</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function selectStrategy(strategyId) {
+            const data = await fetchAPI('/portfolio/settings', {
+                method: 'PUT',
+                body: JSON.stringify({ current_strategy: strategyId })
+            });
+
+            if (!data.error) {
+                currentStrategy = strategyId;
+                showMessage(`Strategy changed to ${strategyId}`);
+                loadAll();
             }
-            el.innerHTML = `
-                <table>
-                    <tr><th>Strategy</th><th>Confidence</th><th>Frequency</th><th>Max Position</th></tr>
-                    ${data.customizations.map(s => `
-                        <tr>
-                            <td><strong>${s.strategy_id}</strong></td>
-                            <td>${s.confidence_level}%</td>
-                            <td>${s.trade_frequency}</td>
-                            <td>${s.max_position_size}%</td>
-                        </tr>
-                    `).join('')}
-                </table>
-            `;
         }
 
         async function initPortfolio() {
@@ -328,7 +1057,7 @@
         }
 
         async function resetPortfolio() {
-            if (!confirm('Are you sure you want to reset the portfolio? This will clear all holdings and trades.')) return;
+            if (!confirm('Reset portfolio? This will clear all holdings and trades.')) return;
             const data = await fetchAPI('/portfolio/reset', {
                 method: 'POST',
                 body: JSON.stringify({})
@@ -360,7 +1089,7 @@
             if (data.error) {
                 showMessage('Error: ' + (data.message || data.error), true);
             } else {
-                showMessage(`Trade executed: ${type.toUpperCase()} ${quantity} ${symbol} @ $${price}`);
+                showMessage(`${type.toUpperCase()} ${quantity} ${symbol} @ ${formatMoney(price)}`);
                 document.getElementById('trade-symbol').value = '';
                 document.getElementById('trade-quantity').value = '';
                 document.getElementById('trade-price').value = '';
@@ -376,8 +1105,9 @@
             loadStrategies();
         }
 
-        // Load on page load
+        // Initial load
         loadAll();
+
         // Refresh every 30 seconds
         setInterval(loadAll, 30000);
     </script>
