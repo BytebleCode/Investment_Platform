@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Yahoo Finance Data Fetcher
 

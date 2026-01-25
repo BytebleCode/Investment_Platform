@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Database Initialization Script
 
