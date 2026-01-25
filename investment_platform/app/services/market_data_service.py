@@ -128,6 +128,10 @@ class MarketDataService:
         """
         Load data from local CSV file.
 
+        Supports CSV format with columns:
+        Date,Open,High,Low,Close,Volume,Dividends,Stock Splits
+        Date format: 2021-01-25 00:00:00-05:00 (with timezone)
+
         Args:
             symbol: Stock ticker symbol
 
@@ -147,12 +151,13 @@ class MarketDataService:
         try:
             df = pd.read_csv(filepath)
 
-            # Standardize column names
-            df.columns = df.columns.str.lower()
+            # Standardize column names to lowercase
+            df.columns = df.columns.str.lower().str.strip()
 
-            # Parse date column
+            # Parse date column - handles timezone-aware dates like "2021-01-25 00:00:00-05:00"
             if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date']).dt.date
+                # Parse datetime with timezone, then extract just the date
+                df['date'] = pd.to_datetime(df['date'], utc=True).dt.date
                 df.set_index('date', inplace=True)
 
             # Ensure required columns exist
@@ -166,7 +171,7 @@ class MarketDataService:
             if 'adj_close' not in df.columns:
                 df['adj_close'] = df['close']
 
-            # Select only needed columns
+            # Select only needed columns (ignore dividends, stock splits, etc.)
             df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
 
             # Sort by date
