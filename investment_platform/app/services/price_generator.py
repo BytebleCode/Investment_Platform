@@ -51,7 +51,7 @@ def generate_price(
         current_price: Current stock price
         beta: Stock's beta (volatility relative to market, default 1.0)
         volatility: Base volatility parameter (default 0.02 = 2%)
-        drift: Daily drift/expected return (default 0.0003 ≈ 7.5% annually)
+        drift: Daily drift/expected return (default 0.0003 ~ 7.5% annually)
 
     Returns:
         New simulated price (always positive)
@@ -100,7 +100,7 @@ def generate_price_with_seasonality(
     """
     # Calculate seasonal adjustment using sine wave
     monthly_phase = 2 * pi * (day_of_year / 365)
-    seasonality = sin(monthly_phase) * 0.003  # ±0.3% seasonal swing
+    seasonality = sin(monthly_phase) * 0.003  # +/-0.3% seasonal swing
 
     # Adjust drift for seasonality
     adjusted_drift = drift + seasonality

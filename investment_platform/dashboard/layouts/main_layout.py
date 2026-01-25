@@ -21,19 +21,19 @@ def create_main_layout():
     Create the main dashboard layout.
 
     Layout structure:
-    ┌─────────────────────────────────────────┐
-    │            HEADER / NAVBAR              │
-    ├───────────────────────┬─────────────────┤
-    │   PORTFOLIO CHART     │ PORTFOLIO       │
-    │   (Line Chart)        │ SUMMARY         │
-    ├───────────────────────┼─────────────────┤
-    │   STRATEGY SELECTOR   │ ALLOCATION      │
-    │   (5 Cards)           │ PIE CHART       │
-    ├───────────────────────┴─────────────────┤
-    │   HOLDINGS TABLE                        │
-    ├─────────────────────────────────────────┤
-    │   TRADE HISTORY                         │
-    └─────────────────────────────────────────┘
+    +-----------------------------------------+
+    |            HEADER / NAVBAR              |
+    +-----------------------+-----------------+
+    |   PORTFOLIO CHART     | PORTFOLIO       |
+    |   (Line Chart)        | SUMMARY         |
+    +-----------------------+-----------------+
+    |   STRATEGY SELECTOR   | ALLOCATION      |
+    |   (5 Cards)           | PIE CHART       |
+    +-----------------------+-----------------+
+    |   HOLDINGS TABLE                        |
+    +-----------------------------------------+
+    |   TRADE HISTORY                         |
+    +-----------------------------------------+
     """
     return dmc.Container(
         fluid=True,

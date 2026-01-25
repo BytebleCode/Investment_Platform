@@ -26,15 +26,15 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
 
     print(f"""
-    ╔══════════════════════════════════════════════════════════════╗
-    ║           Investment Platform - Development Server           ║
-    ╠══════════════════════════════════════════════════════════════╣
-    ║  API Server:  http://localhost:{port}/api                      ║
-    ║  Dashboard:   http://localhost:{port}/dashboard/               ║
-    ║  Health:      http://localhost:{port}/api/health               ║
-    ║                                                              ║
-    ║  Press Ctrl+C to stop                                        ║
-    ╚══════════════════════════════════════════════════════════════╝
+    +==============================================================+
+    |           Investment Platform - Development Server           |
+    +==============================================================+
+    |  API Server:  http://localhost:{port}/api                      |
+    |  Dashboard:   http://localhost:{port}/dashboard/               |
+    |  Health:      http://localhost:{port}/api/health               |
+    |                                                              |
+    |  Press Ctrl+C to stop                                        |
+    +==============================================================+
     """)
 
     flask_app.run(

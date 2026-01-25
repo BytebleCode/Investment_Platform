@@ -189,7 +189,7 @@ def calculate_execution_price(
 
     Simulates realistic execution with:
     - Bid-ask spread: 0.1% - 0.3%
-    - Slippage: ±0.05%
+    - Slippage: +/-0.05%
 
     Args:
         market_price: Current market price

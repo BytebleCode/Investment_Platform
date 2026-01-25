@@ -46,35 +46,35 @@ When you first access the platform, you'll start with:
 The dashboard is divided into several sections:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    HEADER / NAVBAR                       │
-│  [Strategy: Balanced ▼]              [Auto-Trade: OFF]  │
-├───────────────────────────────┬─────────────────────────┤
-│                               │                         │
-│    PORTFOLIO CHART            │   PORTFOLIO SUMMARY     │
-│    (Performance over time)    │   - Cash: $45,000       │
-│                               │   - Invested: $55,000   │
-│                               │   - Return: +5.5%       │
-│                               │   - Est. Tax: $1,850    │
-├───────────────────────────────┼─────────────────────────┤
-│                               │                         │
-│    STRATEGY SELECTOR          │   ALLOCATION PIE        │
-│    [Conservative] [Growth]    │   (By Stock/Sector)     │
-│    [Value] [Balanced]         │                         │
-│    [Aggressive]               │                         │
-├───────────────────────────────┴─────────────────────────┤
-│                                                          │
-│    HOLDINGS TABLE                                        │
-│    Symbol | Name | Qty | Avg Cost | Price | Gain/Loss   │
-│    AAPL   | Apple| 100 | $150.00  | $175  | +$2,500     │
-│                                                          │
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│    TRADE HISTORY                                         │
-│    [All] [Buy] [Sell]                                   │
-│    - Jan 15: BUY 100 AAPL @ $150.00                     │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
++----------------------------------------------------------+
+|                    HEADER / NAVBAR                        |
+|  [Strategy: Balanced v]              [Auto-Trade: OFF]    |
++-------------------------------+--------------------------+
+|                               |                          |
+|    PORTFOLIO CHART            |   PORTFOLIO SUMMARY      |
+|    (Performance over time)    |   - Cash: $45,000        |
+|                               |   - Invested: $55,000    |
+|                               |   - Return: +5.5%        |
+|                               |   - Est. Tax: $1,850     |
++-------------------------------+--------------------------+
+|                               |                          |
+|    STRATEGY SELECTOR          |   ALLOCATION PIE         |
+|    [Conservative] [Growth]    |   (By Stock/Sector)      |
+|    [Value] [Balanced]         |                          |
+|    [Aggressive]               |                          |
++-------------------------------+--------------------------+
+|                                                          |
+|    HOLDINGS TABLE                                        |
+|    Symbol | Name | Qty | Avg Cost | Price | Gain/Loss   |
+|    AAPL   | Apple| 100 | $150.00  | $175  | +$2,500     |
+|                                                          |
++----------------------------------------------------------+
+|                                                          |
+|    TRADE HISTORY                                         |
+|    [All] [Buy] [Sell]                                   |
+|    - Jan 15: BUY 100 AAPL @ $150.00                     |
+|                                                          |
++----------------------------------------------------------+
 ```
 
 ### Portfolio Summary Cards
@@ -109,13 +109,13 @@ The Holdings Table shows all your current positions:
 | Quantity | Number of shares owned |
 | Avg Cost | Average purchase price per share |
 | Current Price | Latest market price |
-| Value | Total position value (Qty × Price) |
+| Value | Total position value (Qty x Price) |
 | Gain/Loss $ | Dollar profit/loss |
 | Gain/Loss % | Percentage profit/loss |
 
 **Color Coding:**
-- 🟢 Green = Profit (current price > avg cost)
-- 🔴 Red = Loss (current price < avg cost)
+- Green = Profit (current price > avg cost)
+- Red = Loss (current price < avg cost)
 
 ### Allocation Chart
 
@@ -199,11 +199,11 @@ View past trades in the Trade History section:
 
 | Strategy | Risk Level | Expected Return | Description |
 |----------|------------|-----------------|-------------|
-| **Conservative** | 1/5 ⭐ | 2-6% | Low-risk, stable dividend stocks |
-| **Growth** | 4/5 ⭐⭐⭐⭐ | 10-25% | High-growth tech stocks |
-| **Value** | 2/5 ⭐⭐ | 6-12% | Undervalued blue-chip stocks |
-| **Balanced** | 3/5 ⭐⭐⭐ | 5-12% | Mix of growth and stability |
-| **Aggressive** | 5/5 ⭐⭐⭐⭐⭐ | -20% to +50% | High-risk, high-reward |
+| **Conservative** | 1/5 | 2-6% | Low-risk, stable dividend stocks |
+| **Growth** | 4/5 | 10-25% | High-growth tech stocks |
+| **Value** | 2/5 | 6-12% | Undervalued blue-chip stocks |
+| **Balanced** | 3/5 | 5-12% | Mix of growth and stability |
+| **Aggressive** | 5/5 | -20% to +50% | High-risk, high-reward |
 
 ### Selecting a Strategy
 
@@ -241,9 +241,9 @@ Click **Save** to apply your customizations.
 
 | Indicator | Meaning |
 |-----------|---------|
-| 🟢 +$X.XX (+X.XX%) | Price increased |
-| 🔴 -$X.XX (-X.XX%) | Price decreased |
-| ⚪ $X.XX (0.00%) | Price unchanged |
+| Green +$X.XX (+X.XX%) | Price increased |
+| Red -$X.XX (-X.XX%) | Price decreased |
+| Gray $X.XX (0.00%) | Price unchanged |
 
 ### Market Hours
 
@@ -270,17 +270,17 @@ Only **realized gains** are taxable.
 The platform calculates estimated tax at **37%** (short-term capital gains rate):
 
 ```
-Estimated Tax = Realized Gains × 0.37
+Estimated Tax = Realized Gains x 0.37
 ```
 
 Example:
 - Realized Gains: $5,000
-- Estimated Tax: $5,000 × 0.37 = $1,850
+- Estimated Tax: $5,000 x 0.37 = $1,850
 
 ### Return Calculation
 
 ```
-Total Return = (Current Portfolio Value - Initial Value) / Initial Value × 100%
+Total Return = (Current Portfolio Value - Initial Value) / Initial Value x 100%
 
 Where:
 Current Portfolio Value = Cash + Sum(Holdings Value)
@@ -323,13 +323,13 @@ Initial Value = $100,000 (default)
 **A:** Using weighted average:
 
 ```
-New Avg Cost = (Old Cost × Old Qty + New Price × New Qty) / Total Qty
+New Avg Cost = (Old Cost x Old Qty + New Price x New Qty) / Total Qty
 ```
 
 Example:
 - Own 100 shares at $150 avg cost
 - Buy 50 more at $180
-- New avg = (150×100 + 180×50) / 150 = $160
+- New avg = (150x100 + 180x50) / 150 = $160
 
 ### Q: What happens when I sell?
 
@@ -366,4 +366,4 @@ For technical issues:
 3. Contact your system administrator
 4. Check application logs
 
-Happy Investing! 📈
+Happy Investing!

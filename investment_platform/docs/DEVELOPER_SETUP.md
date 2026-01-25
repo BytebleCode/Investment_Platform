@@ -111,106 +111,106 @@ python run.py
 
 ```
 investment_platform/
-├── app/                        # Flask application
-│   ├── __init__.py            # App factory
-│   ├── config.py              # Configuration classes
-│   ├── logging_config.py      # Logging setup
-│   ├── security.py            # Security utilities
-│   │
-│   ├── api/                   # REST API endpoints
-│   │   ├── __init__.py
-│   │   ├── portfolio_routes.py
-│   │   ├── holdings_routes.py
-│   │   ├── trades_routes.py
-│   │   ├── strategy_routes.py
-│   │   ├── market_data_routes.py
-│   │   ├── trading_routes.py
-│   │   └── health_routes.py
-│   │
-│   ├── models/                # SQLAlchemy models
-│   │   ├── __init__.py
-│   │   ├── portfolio.py
-│   │   ├── holdings.py
-│   │   ├── trades.py
-│   │   ├── strategy.py
-│   │   ├── market_data.py
-│   │   └── market_metadata.py
-│   │
-│   ├── services/              # Business logic
-│   │   ├── __init__.py
-│   │   ├── market_data_service.py
-│   │   ├── portfolio_service.py
-│   │   ├── price_generator.py
-│   │   └── trading_engine.py
-│   │
-│   ├── data/                  # Static data definitions
-│   │   ├── __init__.py
-│   │   ├── stock_universe.py
-│   │   └── strategies.py
-│   │
-│   └── validation/            # Input validation
-│       ├── __init__.py
-│       └── schemas.py
-│
-├── dashboard/                  # Dash application
-│   ├── __init__.py
-│   ├── app.py                 # Dash app factory
-│   │
-│   ├── layouts/               # UI layouts
-│   │   ├── __init__.py
-│   │   ├── main_layout.py
-│   │   └── components/        # UI components
-│   │       ├── header.py
-│   │       ├── portfolio_summary.py
-│   │       ├── portfolio_chart.py
-│   │       ├── holdings_table.py
-│   │       ├── allocation_pie.py
-│   │       ├── strategy_selector.py
-│   │       ├── strategy_modal.py
-│   │       └── trade_history.py
-│   │
-│   └── callbacks/             # Dash callbacks
-│       ├── __init__.py
-│       ├── data_callbacks.py
-│       ├── trading_callbacks.py
-│       ├── chart_callbacks.py
-│       └── strategy_callbacks.py
-│
-├── tests/                      # Test suite
-│   ├── __init__.py
-│   ├── conftest.py            # Pytest fixtures
-│   ├── test_models.py
-│   ├── test_api.py
-│   ├── test_trading_engine.py
-│   ├── test_price_generator.py
-│   ├── test_portfolio_service.py
-│   ├── test_market_data_service.py
-│   ├── test_data.py
-│   └── test_e2e.py
-│
-├── migrations/                 # Alembic migrations
-│   └── versions/
-│
-├── scripts/                    # Utility scripts
-│   ├── migrate_sqlite_to_db2.py
-│   └── verify_migration.py
-│
-├── docs/                       # Documentation
-│   ├── API_REFERENCE.md
-│   ├── DEPLOYMENT_GUIDE.md
-│   ├── USER_GUIDE.md
-│   └── DEVELOPER_SETUP.md
-│
-├── notebooks/                  # Jupyter notebooks
-│
-├── run.py                      # Development entry point
-├── wsgi.py                     # Production entry point
-├── gunicorn.conf.py           # Gunicorn configuration
-├── uwsgi.ini                   # uWSGI configuration
-├── pytest.ini                  # Pytest configuration
-├── requirements.txt            # Python dependencies
-├── .env.template              # Environment template
-└── production.env.template    # Production env template
++-- app/                        # Flask application
+|   +-- __init__.py            # App factory
+|   +-- config.py              # Configuration classes
+|   +-- logging_config.py      # Logging setup
+|   +-- security.py            # Security utilities
+|   |
+|   +-- api/                   # REST API endpoints
+|   |   +-- __init__.py
+|   |   +-- portfolio_routes.py
+|   |   +-- holdings_routes.py
+|   |   +-- trades_routes.py
+|   |   +-- strategy_routes.py
+|   |   +-- market_data_routes.py
+|   |   +-- trading_routes.py
+|   |   +-- health_routes.py
+|   |
+|   +-- models/                # SQLAlchemy models
+|   |   +-- __init__.py
+|   |   +-- portfolio.py
+|   |   +-- holdings.py
+|   |   +-- trades.py
+|   |   +-- strategy.py
+|   |   +-- market_data.py
+|   |   +-- market_metadata.py
+|   |
+|   +-- services/              # Business logic
+|   |   +-- __init__.py
+|   |   +-- market_data_service.py
+|   |   +-- portfolio_service.py
+|   |   +-- price_generator.py
+|   |   +-- trading_engine.py
+|   |
+|   +-- data/                  # Static data definitions
+|   |   +-- __init__.py
+|   |   +-- stock_universe.py
+|   |   +-- strategies.py
+|   |
+|   +-- validation/            # Input validation
+|       +-- __init__.py
+|       +-- schemas.py
+|
++-- dashboard/                  # Dash application
+|   +-- __init__.py
+|   +-- app.py                 # Dash app factory
+|   |
+|   +-- layouts/               # UI layouts
+|   |   +-- __init__.py
+|   |   +-- main_layout.py
+|   |   +-- components/        # UI components
+|   |       +-- header.py
+|   |       +-- portfolio_summary.py
+|   |       +-- portfolio_chart.py
+|   |       +-- holdings_table.py
+|   |       +-- allocation_pie.py
+|   |       +-- strategy_selector.py
+|   |       +-- strategy_modal.py
+|   |       +-- trade_history.py
+|   |
+|   +-- callbacks/             # Dash callbacks
+|       +-- __init__.py
+|       +-- data_callbacks.py
+|       +-- trading_callbacks.py
+|       +-- chart_callbacks.py
+|       +-- strategy_callbacks.py
+|
++-- tests/                      # Test suite
+|   +-- __init__.py
+|   +-- conftest.py            # Pytest fixtures
+|   +-- test_models.py
+|   +-- test_api.py
+|   +-- test_trading_engine.py
+|   +-- test_price_generator.py
+|   +-- test_portfolio_service.py
+|   +-- test_market_data_service.py
+|   +-- test_data.py
+|   +-- test_e2e.py
+|
++-- migrations/                 # Alembic migrations
+|   +-- versions/
+|
++-- scripts/                    # Utility scripts
+|   +-- migrate_sqlite_to_db2.py
+|   +-- verify_migration.py
+|
++-- docs/                       # Documentation
+|   +-- API_REFERENCE.md
+|   +-- DEPLOYMENT_GUIDE.md
+|   +-- USER_GUIDE.md
+|   +-- DEVELOPER_SETUP.md
+|
++-- notebooks/                  # Jupyter notebooks
+|
++-- run.py                      # Development entry point
++-- wsgi.py                     # Production entry point
++-- gunicorn.conf.py           # Gunicorn configuration
++-- uwsgi.ini                   # uWSGI configuration
++-- pytest.ini                  # Pytest configuration
++-- requirements.txt            # Python dependencies
++-- .env.template              # Environment template
++-- production.env.template    # Production env template
 ```
 
 ---
@@ -457,17 +457,17 @@ def calculate_value(
 ### Application Layers
 
 ```
-┌─────────────────────────────────────────┐
-│           Dashboard (Dash/Plotly)        │
-├─────────────────────────────────────────┤
-│              REST API (Flask)            │
-├─────────────────────────────────────────┤
-│         Services (Business Logic)        │
-├─────────────────────────────────────────┤
-│          Models (SQLAlchemy ORM)         │
-├─────────────────────────────────────────┤
-│        Database (SQLite/DB2)             │
-└─────────────────────────────────────────┘
++-----------------------------------------+
+|           Dashboard (Dash/Plotly)        |
++-----------------------------------------+
+|              REST API (Flask)            |
++-----------------------------------------+
+|         Services (Business Logic)        |
++-----------------------------------------+
+|          Models (SQLAlchemy ORM)         |
++-----------------------------------------+
+|        Database (SQLite/DB2)             |
++-----------------------------------------+
 ```
 
 ### Key Components
@@ -483,10 +483,10 @@ def calculate_value(
 
 ### Request Flow
 
-1. **Dashboard** → HTTP request → **Flask API**
-2. **API Route** → validates input → calls **Service**
-3. **Service** → business logic → queries **Model**
-4. **Model** → SQLAlchemy → **Database**
+1. **Dashboard** -> HTTP request -> **Flask API**
+2. **API Route** -> validates input -> calls **Service**
+3. **Service** -> business logic -> queries **Model**
+4. **Model** -> SQLAlchemy -> **Database**
 5. Response flows back up the chain
 
 ---
@@ -594,4 +594,4 @@ flask shell
 flask routes
 ```
 
-Happy coding! 🚀
+Happy coding!
