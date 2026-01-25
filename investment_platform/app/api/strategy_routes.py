@@ -6,8 +6,34 @@ Endpoints for managing investment strategy customizations.
 from flask import Blueprint, jsonify, request
 from app.database import is_csv_backend
 from app.models import StrategyCustomization
+from app.data.strategies import STRATEGIES, STRATEGY_IDS
 
 strategy_bp = Blueprint('strategies', __name__)
+
+
+@strategy_bp.route('', methods=['GET'])
+def get_strategies():
+    """
+    GET /api/strategies
+    Returns all available investment strategies.
+    """
+    strategies_list = []
+    for strategy_id in STRATEGY_IDS:
+        strategy = STRATEGIES.get(strategy_id, {})
+        strategies_list.append({
+            'id': strategy_id,
+            'name': strategy.get('name', strategy_id.title()),
+            'description': strategy.get('description', ''),
+            'risk_level': strategy.get('risk_level', 3),
+            'expected_return': strategy.get('expected_return', (0, 0)),
+            'stocks': strategy.get('stocks', []),
+            'color': strategy.get('color', '#3b82f6')
+        })
+
+    return jsonify({
+        'strategies': strategies_list,
+        'count': len(strategies_list)
+    })
 
 
 @strategy_bp.route('/customizations', methods=['GET'])
@@ -15,15 +41,46 @@ def get_customizations():
     """
     GET /api/strategies/customizations
     Returns all strategy customizations for the user.
+    Returns all strategies with default values merged with user customizations.
     """
     user_id = request.args.get('user_id', 'default')
     customizations = StrategyCustomization.get_user_customizations(user_id)
 
     # CSV backend returns dicts, DB backend returns objects
     if customizations and isinstance(customizations[0], dict):
-        customizations_list = customizations
+        user_customs = {c['strategy_id']: c for c in customizations}
+    elif customizations:
+        user_customs = {c.strategy_id: c.to_dict() for c in customizations}
     else:
-        customizations_list = [c.to_dict() for c in customizations]
+        user_customs = {}
+
+    # Build list with all strategies, merging user customizations
+    from app.data.strategies import DEFAULT_CUSTOMIZATION
+    customizations_list = []
+
+    for strategy_id in STRATEGY_IDS:
+        strategy = STRATEGIES.get(strategy_id, {})
+
+        if strategy_id in user_customs:
+            # Use user's customization
+            customizations_list.append(user_customs[strategy_id])
+        else:
+            # Use default customization
+            customizations_list.append({
+                'user_id': user_id,
+                'strategy_id': strategy_id,
+                'confidence_level': DEFAULT_CUSTOMIZATION.get('confidence_level', 50),
+                'trade_frequency': DEFAULT_CUSTOMIZATION.get('trade_frequency', 'medium'),
+                'max_position_size': DEFAULT_CUSTOMIZATION.get('max_position_size', 15),
+                'stop_loss_percent': DEFAULT_CUSTOMIZATION.get('stop_loss_percent', 10),
+                'take_profit_percent': DEFAULT_CUSTOMIZATION.get('take_profit_percent', 20),
+                'auto_rebalance': DEFAULT_CUSTOMIZATION.get('auto_rebalance', True),
+                'reinvest_dividends': DEFAULT_CUSTOMIZATION.get('reinvest_dividends', True),
+                'name': strategy.get('name', strategy_id.title()),
+                'description': strategy.get('description', ''),
+                'risk_level': strategy.get('risk_level', 3),
+                'color': strategy.get('color', '#3b82f6')
+            })
 
     return jsonify({
         'customizations': customizations_list
