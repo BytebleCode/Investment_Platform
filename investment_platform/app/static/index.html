@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investment Platform</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #4ecca3; margin-bottom: 20px; }
+        h2 { color: #4ecca3; margin: 20px 0 10px; font-size: 1.2em; }
+        .card {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .status { display: flex; gap: 20px; flex-wrap: wrap; }
+        .status-item {
+            background: #0f3460;
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .status-item .label { font-size: 0.8em; color: #888; }
+        .status-item .value { font-size: 1.5em; font-weight: bold; margin-top: 5px; }
+        .ok { color: #4ecca3; }
+        .error { color: #e94560; }
+        .warning { color: #f9b208; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #0f3460; }
+        th { color: #4ecca3; }
+        .btn {
+            background: #4ecca3;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover { background: #3db892; }
+        .btn-danger { background: #e94560; color: white; }
+        .btn-danger:hover { background: #d63050; }
+        input, select {
+            background: #0f3460;
+            border: 1px solid #4ecca3;
+            color: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #888; }
+        .message { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .message.success { background: #1e4d3d; color: #4ecca3; }
+        .message.error { background: #4d1e2a; color: #e94560; }
+        .loading { color: #888; font-style: italic; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .money { font-family: monospace; }
+        .positive { color: #4ecca3; }
+        .negative { color: #e94560; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Investment Platform</h1>
+
+        <div id="message"></div>
+
+        <!-- System Status -->
+        <div class="card">
+            <h2>System Status</h2>
+            <div class="status" id="health-status">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Portfolio Summary -->
+        <div class="card">
+            <h2>Portfolio Summary</h2>
+            <div class="status" id="portfolio-summary">
+                <div class="loading">Loading...</div>
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn" onclick="initPortfolio()">Initialize Portfolio</button>
+                <button class="btn btn-danger" onclick="resetPortfolio()">Reset Portfolio</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Holdings -->
+            <div class="card">
+                <h2>Holdings</h2>
+                <div id="holdings-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Trade Form -->
+            <div class="card">
+                <h2>Execute Trade</h2>
+                <div class="form-group">
+                    <label>Symbol</label>
+                    <input type="text" id="trade-symbol" placeholder="AAPL" style="width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="trade-type" style="width: 100%;">
+                        <option value="buy">Buy</option>
+                        <option value="sell">Sell</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" id="trade-quantity" placeholder="10" style="width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label>Price</label>
+                    <input type="number" id="trade-price" placeholder="150.00" step="0.01" style="width: 100%;">
+                </div>
+                <button class="btn" onclick="executeTrade()">Execute Trade</button>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="card">
+            <h2>Recent Trades</h2>
+            <div id="trades-list">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Strategies -->
+        <div class="card">
+            <h2>Available Strategies</h2>
+            <div id="strategies-list">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        function showMessage(text, isError = false) {
+            const el = document.getElementById('message');
+            el.innerHTML = `<div class="message ${isError ? 'error' : 'success'}">${text}</div>`;
+            setTimeout(() => el.innerHTML = '', 5000);
+        }
+
+        function formatMoney(amount) {
+            const num = parseFloat(amount) || 0;
+            const cls = num >= 0 ? 'positive' : 'negative';
+            return `<span class="money ${cls}">$${num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>`;
+        }
+
+        async function fetchAPI(endpoint, options = {}) {
+            try {
+                const res = await fetch(API_BASE + endpoint, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                return await res.json();
+            } catch (e) {
+                console.error('API Error:', e);
+                return { error: e.message };
+            }
+        }
+
+        async function loadHealth() {
+            const data = await fetchAPI('/health');
+            const el = document.getElementById('health-status');
+            if (data.error) {
+                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+            el.innerHTML = `
+                <div class="status-item">
+                    <div class="label">Status</div>
+                    <div class="value ${data.status === 'ok' ? 'ok' : 'error'}">${data.status.toUpperCase()}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Storage</div>
+                    <div class="value ${data.components?.storage === 'ok' ? 'ok' : 'error'}">${data.storage_backend || 'N/A'}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Market</div>
+                    <div class="value ${data.market_status === 'open' ? 'ok' : 'warning'}">${data.market_status?.toUpperCase() || 'N/A'}</div>
+                </div>
+            `;
+        }
+
+        async function loadPortfolio() {
+            const data = await fetchAPI('/portfolio/');
+            const el = document.getElementById('portfolio-summary');
+            if (data.error) {
+                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+            const totalValue = parseFloat(data.current_cash || 0) + parseFloat(data.holdings_value || 0);
+            const gain = totalValue - parseFloat(data.initial_value || 100000);
+            el.innerHTML = `
+                <div class="status-item">
+                    <div class="label">Cash</div>
+                    <div class="value">${formatMoney(data.current_cash)}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Holdings Value</div>
+                    <div class="value">${formatMoney(data.holdings_value || 0)}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Total Value</div>
+                    <div class="value">${formatMoney(totalValue)}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Realized Gains</div>
+                    <div class="value">${formatMoney(data.realized_gains)}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">Strategy</div>
+                    <div class="value ok">${data.current_strategy || 'N/A'}</div>
+                </div>
+            `;
+        }
+
+        async function loadHoldings() {
+            const data = await fetchAPI('/holdings/');
+            const el = document.getElementById('holdings-list');
+            if (data.error) {
+                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+            if (!data.holdings || data.holdings.length === 0) {
+                el.innerHTML = '<p style="color:#888">No holdings yet</p>';
+                return;
+            }
+            el.innerHTML = `
+                <table>
+                    <tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Value</th></tr>
+                    ${data.holdings.map(h => `
+                        <tr>
+                            <td><strong>${h.symbol}</strong></td>
+                            <td>${h.quantity}</td>
+                            <td class="money">$${parseFloat(h.avg_cost).toFixed(2)}</td>
+                            <td>${formatMoney(h.quantity * h.avg_cost)}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        async function loadTrades() {
+            const data = await fetchAPI('/trades/');
+            const el = document.getElementById('trades-list');
+            if (data.error) {
+                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+            if (!data.trades || data.trades.length === 0) {
+                el.innerHTML = '<p style="color:#888">No trades yet</p>';
+                return;
+            }
+            el.innerHTML = `
+                <table>
+                    <tr><th>Date</th><th>Type</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+                    ${data.trades.slice(0, 10).map(t => `
+                        <tr>
+                            <td>${new Date(t.timestamp).toLocaleDateString()}</td>
+                            <td class="${t.type === 'buy' ? 'ok' : 'error'}">${t.type.toUpperCase()}</td>
+                            <td><strong>${t.symbol}</strong></td>
+                            <td>${t.quantity}</td>
+                            <td class="money">$${parseFloat(t.price).toFixed(2)}</td>
+                            <td>${formatMoney(t.total)}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        async function loadStrategies() {
+            const data = await fetchAPI('/strategies/');
+            const el = document.getElementById('strategies-list');
+            if (data.error) {
+                el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+            if (!data.strategies || data.strategies.length === 0) {
+                el.innerHTML = '<p style="color:#888">No strategies available</p>';
+                return;
+            }
+            el.innerHTML = `
+                <table>
+                    <tr><th>Name</th><th>Risk</th><th>Description</th></tr>
+                    ${data.strategies.map(s => `
+                        <tr>
+                            <td><strong>${s.name}</strong></td>
+                            <td>${s.risk_level || 'N/A'}</td>
+                            <td style="color:#888">${s.description || ''}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        async function initPortfolio() {
+            const data = await fetchAPI('/portfolio/initialize', { method: 'POST' });
+            if (data.error) {
+                showMessage('Error: ' + data.error, true);
+            } else {
+                showMessage('Portfolio initialized successfully!');
+                loadAll();
+            }
+        }
+
+        async function resetPortfolio() {
+            if (!confirm('Are you sure you want to reset the portfolio? This will clear all holdings and trades.')) return;
+            const data = await fetchAPI('/portfolio/reset', { method: 'POST' });
+            if (data.error) {
+                showMessage('Error: ' + data.error, true);
+            } else {
+                showMessage('Portfolio reset successfully!');
+                loadAll();
+            }
+        }
+
+        async function executeTrade() {
+            const symbol = document.getElementById('trade-symbol').value.toUpperCase();
+            const type = document.getElementById('trade-type').value;
+            const quantity = parseInt(document.getElementById('trade-quantity').value);
+            const price = parseFloat(document.getElementById('trade-price').value);
+
+            if (!symbol || !quantity || !price) {
+                showMessage('Please fill all fields', true);
+                return;
+            }
+
+            const data = await fetchAPI('/trading/execute', {
+                method: 'POST',
+                body: JSON.stringify({ symbol, type, quantity, price })
+            });
+
+            if (data.error) {
+                showMessage('Error: ' + (data.message || data.error), true);
+            } else {
+                showMessage(`Trade executed: ${type.toUpperCase()} ${quantity} ${symbol} @ $${price}`);
+                document.getElementById('trade-symbol').value = '';
+                document.getElementById('trade-quantity').value = '';
+                document.getElementById('trade-price').value = '';
+                loadAll();
+            }
+        }
+
+        function loadAll() {
+            loadHealth();
+            loadPortfolio();
+            loadHoldings();
+            loadTrades();
+            loadStrategies();
+        }
+
+        // Load on page load
+        loadAll();
+        // Refresh every 30 seconds
+        setInterval(loadAll, 30000);
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@ Endpoints for system health monitoring.
 """
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone
-from app import db
+from app.database import is_csv_backend, get_csv_storage, get_session
 
 health_bp = Blueprint('health', __name__)
 
@@ -19,18 +19,27 @@ def health_check():
     status = {
         'status': 'ok',
         'timestamp': datetime.now(timezone.utc).isoformat(),
-        'components': {}
+        'components': {},
+        'storage_backend': 'csv' if is_csv_backend() else 'database'
     }
 
-    # Check database connection
+    # Check storage backend
     try:
-        db.session.execute(db.text('SELECT 1'))
-        status['components']['database'] = 'ok'
+        if is_csv_backend():
+            # For CSV, just verify we can access the storage
+            storage = get_csv_storage()
+            storage.get_portfolio('default')
+            status['components']['storage'] = 'ok'
+        else:
+            # For database, execute a test query
+            from app import db
+            db.session.execute(db.text('SELECT 1'))
+            status['components']['storage'] = 'ok'
     except Exception as e:
-        status['components']['database'] = f'error: {str(e)}'
+        status['components']['storage'] = f'error: {str(e)}'
         status['status'] = 'degraded'
 
-    # Market status (simplified - full implementation in Phase 2)
+    # Market status (simplified)
     now = datetime.now(timezone.utc)
     hour = now.hour
     weekday = now.weekday()
@@ -40,9 +49,6 @@ def health_check():
         status['market_status'] = 'open'
     else:
         status['market_status'] = 'closed'
-
-    # Yahoo Finance status (placeholder - full check in Phase 2)
-    status['components']['yahoo_finance'] = 'not_checked'
 
     return jsonify(status)
 
@@ -54,7 +60,12 @@ def readiness_check():
     Kubernetes-style readiness probe.
     """
     try:
-        db.session.execute(db.text('SELECT 1'))
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.get_portfolio('default')
+        else:
+            from app import db
+            db.session.execute(db.text('SELECT 1'))
         return jsonify({'ready': True}), 200
     except Exception:
         return jsonify({'ready': False}), 503

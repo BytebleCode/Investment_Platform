@@ -1,7 +1,8 @@
 """
 Investment Platform - Flask Application Factory
 """
-from flask import Flask
+import os
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 
 from app.database import init_db, create_all, close_session, get_scoped_session
@@ -60,6 +61,17 @@ def create_app(config_class=None):
 
     # Create database tables
     create_all()
+
+    # Serve static HTML frontend
+    static_folder = os.path.join(os.path.dirname(__file__), 'static')
+
+    @app.route('/')
+    def index():
+        return send_from_directory(static_folder, 'index.html')
+
+    @app.route('/static/<path:filename>')
+    def serve_static(filename):
+        return send_from_directory(static_folder, filename)
 
     # Teardown - close session after each request
     @app.teardown_appcontext
