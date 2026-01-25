@@ -28,44 +28,53 @@ def initialize_portfolio():
     POST /api/portfolio/initialize
     Initialize or reinitialize the portfolio with default settings.
     """
-    data = request.get_json() or {}
-    user_id = data.get('user_id', 'default')
-    initial_value = data.get('initial_value', 100000.00)
+    try:
+        data = request.get_json(silent=True) or {}
+        user_id = data.get('user_id', 'default')
+        initial_value = float(data.get('initial_value', 100000.00))
 
-    if is_csv_backend():
-        storage = get_csv_storage()
-        portfolio = storage.get_portfolio(user_id)
-        if portfolio:
-            storage.update_portfolio(
-                user_id,
-                initial_value=initial_value,
-                current_cash=initial_value,
-                is_initialized=1,
-                realized_gains=0
-            )
+        if is_csv_backend():
+            storage = get_csv_storage()
+            portfolio = storage.get_portfolio(user_id)
+            if portfolio:
+                storage.update_portfolio(
+                    user_id,
+                    initial_value=initial_value,
+                    current_cash=initial_value,
+                    is_initialized=1,
+                    realized_gains=0
+                )
+            else:
+                storage.create_portfolio(
+                    user_id,
+                    initial_value=initial_value,
+                    current_cash=initial_value,
+                    is_initialized=1
+                )
+            portfolio = storage.get_portfolio(user_id)
+            # Convert Decimal to float for JSON serialization
+            if portfolio:
+                for key in ['initial_value', 'current_cash', 'realized_gains']:
+                    if key in portfolio and portfolio[key] is not None:
+                        portfolio[key] = float(portfolio[key])
+            return jsonify({
+                'message': 'Portfolio initialized',
+                'portfolio': portfolio
+            })
         else:
-            portfolio = storage.create_portfolio(
-                user_id,
-                initial_value=initial_value,
-                current_cash=initial_value,
-                is_initialized=1
-            )
-        return jsonify({
-            'message': 'Portfolio initialized',
-            'portfolio': storage.get_portfolio(user_id)
-        })
-    else:
-        from app import db
-        portfolio = PortfolioState.get_or_create(user_id)
-        portfolio.initial_value = initial_value
-        portfolio.current_cash = initial_value
-        portfolio.is_initialized = 1
-        portfolio.realized_gains = 0
-        db.session.commit()
-        return jsonify({
-            'message': 'Portfolio initialized',
-            'portfolio': portfolio.to_dict()
-        })
+            from app import db
+            portfolio = PortfolioState.get_or_create(user_id)
+            portfolio.initial_value = initial_value
+            portfolio.current_cash = initial_value
+            portfolio.is_initialized = 1
+            portfolio.realized_gains = 0
+            db.session.commit()
+            return jsonify({
+                'message': 'Portfolio initialized',
+                'portfolio': portfolio.to_dict()
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @portfolio_bp.route('/settings', methods=['PUT'])
