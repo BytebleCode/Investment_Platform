@@ -72,6 +72,15 @@ STOCK_UNIVERSE = {
     'MSTR': {'name': 'MicroStrategy Inc.', 'sector': 'Speculative', 'base_price': 500.00, 'beta': 2.80},
     'RIVN': {'name': 'Rivian Automotive', 'sector': 'Speculative', 'base_price': 18.00, 'beta': 2.20},
     'PLTR': {'name': 'Palantir Technologies', 'sector': 'Speculative', 'base_price': 22.00, 'beta': 2.10},
+
+    # Crypto (Yahoo Finance symbols)
+    'BTC-USD': {'name': 'Bitcoin USD', 'sector': 'Crypto', 'base_price': 45000.00, 'beta': 3.00},
+    'ETH-USD': {'name': 'Ethereum USD', 'sector': 'Crypto', 'base_price': 2800.00, 'beta': 2.80},
+
+    # Indices (Yahoo Finance symbols)
+    '^GSPC': {'name': 'S&P 500', 'sector': 'Index', 'base_price': 5200.00, 'beta': 1.00},
+    '^DJI': {'name': 'Dow Jones Industrial Average', 'sector': 'Index', 'base_price': 39000.00, 'beta': 0.95},
+    '^IXIC': {'name': 'NASDAQ Composite', 'sector': 'Index', 'base_price': 16500.00, 'beta': 1.15},
 }
 
 # Available sectors
@@ -83,7 +92,9 @@ SECTORS = [
     'Energy',
     'Industrial',
     'Utilities',
-    'Speculative'
+    'Speculative',
+    'Crypto',
+    'Index'
 ]
 
 
