@@ -184,44 +184,6 @@
             gap: 20px;
         }
 
-        .live-ticker {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 6px 12px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
-            border: 1px solid var(--border-subtle);
-        }
-
-        .ticker-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-family: 'DM Mono', monospace;
-            font-size: 0.75rem;
-        }
-
-        .ticker-symbol {
-            color: var(--text-primary);
-            font-weight: 500;
-        }
-
-        .ticker-change {
-            font-size: 0.7rem;
-            padding: 2px 5px;
-            border-radius: 3px;
-        }
-
-        .ticker-change.up {
-            color: var(--accent-green);
-            background: rgba(0, 255, 159, 0.1);
-        }
-
-        .ticker-change.down {
-            color: var(--accent-red);
-            background: rgba(255, 45, 85, 0.1);
-        }
 
         .btn-terminal {
             font-family: 'Inter', sans-serif;
@@ -246,7 +208,7 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 90px 40px 60px;
+            padding: 120px 40px 60px;
         }
 
         /* Section Headers */
@@ -816,96 +778,75 @@
             margin-top: 12px;
         }
 
-        /* ===== LIVE MARKETS SECTION ===== */
-        .markets-section {
-            margin-bottom: 60px;
+        /* ===== MARKET TICKER STREAMER ===== */
+        .market-ticker-bar {
+            position: fixed;
+            top: 64px;
+            left: 0;
+            right: 0;
+            height: 36px;
+            background: rgba(5, 5, 15, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-subtle);
+            z-index: 999;
+            overflow: hidden;
         }
 
-        .markets-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 20px;
-        }
-
-        .market-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .market-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent-cyan);
-        }
-
-        .market-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-        }
-
-        .market-icon {
-            width: 44px;
-            height: 44px;
-            background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
-            border-radius: 10px;
+        .ticker-wrapper {
             display: flex;
             align-items: center;
-            justify-content: center;
+            height: 100%;
+            animation: ticker-scroll 30s linear infinite;
+        }
+
+        .ticker-wrapper:hover {
+            animation-play-state: paused;
+        }
+
+        @keyframes ticker-scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 24px;
+            border-right: 1px solid var(--border-subtle);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .ticker-symbol {
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--bg-void);
-        }
-
-        .market-change {
-            font-family: 'DM Mono', monospace;
-            font-size: 0.8rem;
-            font-weight: 500;
-            padding: 4px 10px;
-            border-radius: 6px;
-        }
-
-        .market-change.positive {
-            color: var(--accent-green);
-            background: rgba(0, 255, 159, 0.1);
-        }
-
-        .market-change.negative {
-            color: var(--accent-red);
-            background: rgba(255, 45, 85, 0.1);
-        }
-
-        .market-name {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
-
-        .market-symbol {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 1rem;
             font-weight: 600;
             color: var(--text-primary);
         }
 
-        .market-price {
+        .ticker-price {
             font-family: 'DM Mono', monospace;
-            font-size: 1.5rem;
-            font-weight: 500;
+            font-size: 0.75rem;
             color: var(--accent-cyan);
-            margin: 12px 0;
         }
 
-        .market-sparkline {
-            height: 40px;
-            margin-top: 12px;
+        .ticker-change {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .ticker-change.up {
+            color: var(--accent-green);
+            background: rgba(0, 255, 159, 0.15);
+        }
+
+        .ticker-change.down {
+            color: var(--accent-red);
+            background: rgba(255, 45, 85, 0.15);
         }
 
         /* ===== FOOTER ===== */
@@ -1076,12 +1017,25 @@
                 padding: 0 20px;
             }
 
-            .nav-center, .live-ticker {
+            .nav-center {
                 display: none;
             }
 
+            .market-ticker-bar {
+                height: 32px;
+            }
+
+            .ticker-item {
+                padding: 0 16px;
+                gap: 6px;
+            }
+
+            .ticker-symbol, .ticker-price, .ticker-change {
+                font-size: 0.7rem;
+            }
+
             .container {
-                padding: 80px 20px 40px;
+                padding: 110px 20px 40px;
             }
 
             .stats-grid {
@@ -1108,22 +1062,98 @@
             <a href="#dashboard" class="nav-link active">Dashboard</a>
             <a href="#strategies" class="nav-link">Strategies</a>
             <a href="#insights" class="nav-link">Insights</a>
-            <a href="#markets" class="nav-link">Markets</a>
         </div>
         <div class="nav-right">
-            <div class="live-ticker">
-                <div class="ticker-item">
-                    <span class="ticker-symbol">BTC</span>
-                    <span class="ticker-change up" id="ticker-btc-change">+2.4%</span>
-                </div>
-                <div class="ticker-item">
-                    <span class="ticker-symbol">ETH</span>
-                    <span class="ticker-change up" id="ticker-eth-change">+1.8%</span>
-                </div>
-            </div>
             <button class="btn-terminal" onclick="scrollToSection('dashboard')">Dashboard</button>
         </div>
     </nav>
+
+    <!-- Market Ticker Streamer -->
+    <div class="market-ticker-bar">
+        <div class="ticker-wrapper" id="ticker-wrapper">
+            <div class="ticker-item">
+                <span class="ticker-symbol">BTC</span>
+                <span class="ticker-price" id="ticker-btc-price">$45,000</span>
+                <span class="ticker-change up" id="ticker-btc-change">+2.4%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">ETH</span>
+                <span class="ticker-price" id="ticker-eth-price">$2,800</span>
+                <span class="ticker-change up" id="ticker-eth-change">+1.8%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">SPX</span>
+                <span class="ticker-price" id="ticker-spx-price">$5,200</span>
+                <span class="ticker-change up" id="ticker-spx-change">+0.5%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">AAPL</span>
+                <span class="ticker-price" id="ticker-aapl-price">$195</span>
+                <span class="ticker-change up" id="ticker-aapl-change">+1.2%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">MSFT</span>
+                <span class="ticker-price" id="ticker-msft-price">$420</span>
+                <span class="ticker-change up" id="ticker-msft-change">+0.9%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">GOOGL</span>
+                <span class="ticker-price" id="ticker-googl-price">$175</span>
+                <span class="ticker-change up" id="ticker-googl-change">+1.1%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">AMZN</span>
+                <span class="ticker-price" id="ticker-amzn-price">$185</span>
+                <span class="ticker-change up" id="ticker-amzn-change">+0.7%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">NVDA</span>
+                <span class="ticker-price" id="ticker-nvda-price">$880</span>
+                <span class="ticker-change up" id="ticker-nvda-change">+2.1%</span>
+            </div>
+            <!-- Duplicate for seamless scroll -->
+            <div class="ticker-item">
+                <span class="ticker-symbol">BTC</span>
+                <span class="ticker-price">$45,000</span>
+                <span class="ticker-change up">+2.4%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">ETH</span>
+                <span class="ticker-price">$2,800</span>
+                <span class="ticker-change up">+1.8%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">SPX</span>
+                <span class="ticker-price">$5,200</span>
+                <span class="ticker-change up">+0.5%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">AAPL</span>
+                <span class="ticker-price">$195</span>
+                <span class="ticker-change up">+1.2%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">MSFT</span>
+                <span class="ticker-price">$420</span>
+                <span class="ticker-change up">+0.9%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">GOOGL</span>
+                <span class="ticker-price">$175</span>
+                <span class="ticker-change up">+1.1%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">AMZN</span>
+                <span class="ticker-price">$185</span>
+                <span class="ticker-change up">+0.7%</span>
+            </div>
+            <div class="ticker-item">
+                <span class="ticker-symbol">NVDA</span>
+                <span class="ticker-price">$880</span>
+                <span class="ticker-change up">+2.1%</span>
+            </div>
+        </div>
+    </div>
 
     <!-- Message Container -->
     <div id="message"></div>
@@ -1387,54 +1417,6 @@
             </div>
         </section>
 
-        <!-- Live Markets Section -->
-        <section class="markets-section" id="markets">
-            <div class="section-header">
-                <h2 class="section-title">Live Markets</h2>
-            </div>
-            <div class="markets-grid">
-                <div class="market-card">
-                    <div class="market-header">
-                        <div class="market-icon">BTC</div>
-                        <div class="market-change positive" id="btc-change">+0.00%</div>
-                    </div>
-                    <div class="market-name">Bitcoin</div>
-                    <div class="market-symbol">BTC/USD</div>
-                    <div class="market-price" id="btc-price">$--</div>
-                    <canvas class="market-sparkline" id="btc-spark"></canvas>
-                </div>
-                <div class="market-card">
-                    <div class="market-header">
-                        <div class="market-icon">ETH</div>
-                        <div class="market-change positive" id="eth-change">+0.00%</div>
-                    </div>
-                    <div class="market-name">Ethereum</div>
-                    <div class="market-symbol">ETH/USD</div>
-                    <div class="market-price" id="eth-price">$--</div>
-                    <canvas class="market-sparkline" id="eth-spark"></canvas>
-                </div>
-                <div class="market-card">
-                    <div class="market-header">
-                        <div class="market-icon">SPX</div>
-                        <div class="market-change positive" id="spx-change">+0.00%</div>
-                    </div>
-                    <div class="market-name">S&P 500</div>
-                    <div class="market-symbol">SPX</div>
-                    <div class="market-price" id="spx-price">$--</div>
-                    <canvas class="market-sparkline" id="spx-spark"></canvas>
-                </div>
-                <div class="market-card">
-                    <div class="market-header">
-                        <div class="market-icon">AAPL</div>
-                        <div class="market-change positive" id="aapl-change">+0.00%</div>
-                    </div>
-                    <div class="market-name">Apple Inc</div>
-                    <div class="market-symbol">AAPL</div>
-                    <div class="market-price" id="aapl-price">$--</div>
-                    <canvas class="market-sparkline" id="aapl-spark"></canvas>
-                </div>
-            </div>
-        </section>
     </div>
 
     <!-- Footer -->
@@ -2039,12 +2021,16 @@
             }
         }
 
-        function updateMarketCards() {
+        function updateTicker() {
             const markets = [
-                { id: 'btc', base: 45000, volatility: 500 },
-                { id: 'eth', base: 2800, volatility: 50 },
-                { id: 'spx', base: 5200, volatility: 20 },
-                { id: 'aapl', base: 195, volatility: 2 }
+                { id: 'btc', name: 'BTC', base: 45000, volatility: 500 },
+                { id: 'eth', name: 'ETH', base: 2800, volatility: 50 },
+                { id: 'spx', name: 'SPX', base: 5200, volatility: 20 },
+                { id: 'aapl', name: 'AAPL', base: 195, volatility: 2 },
+                { id: 'msft', name: 'MSFT', base: 420, volatility: 5 },
+                { id: 'googl', name: 'GOOGL', base: 175, volatility: 3 },
+                { id: 'amzn', name: 'AMZN', base: 185, volatility: 3 },
+                { id: 'nvda', name: 'NVDA', base: 880, volatility: 15 }
             ];
 
             markets.forEach(m => {
@@ -2052,15 +2038,15 @@
                 const price = m.base + change;
                 const pctChange = (change / m.base * 100);
 
-                document.getElementById(`${m.id}-price`).textContent = formatMoney(price);
+                const priceEl = document.getElementById(`ticker-${m.id}-price`);
+                const changeEl = document.getElementById(`ticker-${m.id}-change`);
 
-                const changeEl = document.getElementById(`${m.id}-change`);
-                changeEl.textContent = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(2) + '%';
-                changeEl.className = 'market-change ' + (pctChange >= 0 ? 'positive' : 'negative');
+                if (priceEl) priceEl.textContent = formatMoney(price);
+                if (changeEl) {
+                    changeEl.textContent = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(2) + '%';
+                    changeEl.className = 'ticker-change ' + (pctChange >= 0 ? 'up' : 'down');
+                }
             });
-
-            document.getElementById('ticker-btc-change').textContent = '+' + (Math.random() * 3).toFixed(1) + '%';
-            document.getElementById('ticker-eth-change').textContent = '+' + (Math.random() * 2).toFixed(1) + '%';
         }
 
         function loadAll() {
@@ -2070,12 +2056,12 @@
             loadTrades();
             loadStrategies();
             loadPerformanceChart(currentPeriod);
-            updateMarketCards();
+            updateTicker();
         }
 
         loadAll();
         setInterval(loadAll, 30000);
-        setInterval(updateMarketCards, 5000);
+        setInterval(updateTicker, 5000);
     </script>
 </body>
 </html>
