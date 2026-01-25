@@ -1755,6 +1755,26 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Sector Allocation Pie Chart -->
+                <div class="dashboard-grid" style="margin-top: 24px; grid-template-columns: 1fr 1fr;">
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Sector Allocation</h3>
+                        </div>
+                        <div id="sector-chart-container" style="position: relative; height: 300px; display: flex; align-items: center; justify-content: center;">
+                            <canvas id="sector-pie-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Sector Breakdown</h3>
+                        </div>
+                        <div id="sector-breakdown-list" style="max-height: 300px; overflow-y: auto;">
+                            <div class="loading">Loading sectors...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Backtest View -->
@@ -1767,11 +1787,11 @@
                         <div class="form-group">
                             <label class="form-label">Strategy</label>
                             <select class="form-select" id="backtest-strategy">
-                                <option value="balanced">Balanced</option>
-                                <option value="conservative">Conservative</option>
-                                <option value="growth">Growth</option>
-                                <option value="value">Value</option>
-                                <option value="aggressive">Aggressive</option>
+                                <option value="monetary_policy">Monetary Policy</option>
+                                <option value="inflation_hedge">Inflation Hedge</option>
+                                <option value="growth_expansion">Growth Expansion</option>
+                                <option value="defensive_quality">Defensive Quality</option>
+                                <option value="liquidity_cycle">Liquidity Cycle</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -2532,6 +2552,112 @@
                     </tbody>
                 </table>
             `;
+
+            // Also update sector chart when holdings change
+            loadSectorAllocation();
+        }
+
+        // Sector pie chart instance
+        let sectorPieChart = null;
+
+        async function loadSectorAllocation() {
+            const data = await fetchAPI('/holdings/sectors');
+            const chartContainer = document.getElementById('sector-chart-container');
+            const breakdownEl = document.getElementById('sector-breakdown-list');
+
+            if (data.error) {
+                chartContainer.innerHTML = `<div style="color: var(--accent-red);">Error loading sectors</div>`;
+                breakdownEl.innerHTML = '';
+                return;
+            }
+
+            if (!data.sectors || data.sectors.length === 0) {
+                chartContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">&#x1F4CA;</div>
+                        <div>No holdings to display</div>
+                    </div>
+                `;
+                breakdownEl.innerHTML = '';
+                return;
+            }
+
+            // Restore canvas if it was replaced
+            if (!document.getElementById('sector-pie-chart')) {
+                chartContainer.innerHTML = '<canvas id="sector-pie-chart"></canvas>';
+            }
+
+            // Prepare chart data
+            const labels = data.sectors.map(s => s.name);
+            const values = data.sectors.map(s => s.value);
+            const colors = data.sectors.map(s => s.color);
+
+            // Destroy existing chart if exists
+            if (sectorPieChart) {
+                sectorPieChart.destroy();
+            }
+
+            // Create pie chart
+            const ctx = document.getElementById('sector-pie-chart').getContext('2d');
+            sectorPieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: colors,
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 2,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '55%',
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(10, 10, 20, 0.9)',
+                            titleColor: '#00F5FF',
+                            bodyColor: '#FFFFFF',
+                            borderColor: 'rgba(0, 245, 255, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    const sector = data.sectors[context.dataIndex];
+                                    return `${formatMoney(sector.value)} (${sector.percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Render breakdown list
+            breakdownEl.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${data.sectors.map(s => `
+                        <div class="sector-breakdown-item" style="display: flex; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid ${s.color};">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500; color: var(--text-primary);">${s.name}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">${s.holdings.length} holding${s.holdings.length !== 1 ? 's' : ''}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-family: 'DM Mono', monospace; color: var(--accent-cyan);">${formatMoney(s.value)}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">${s.percentage}%</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-secondary);">Total Portfolio Value</span>
+                    <span style="font-family: 'DM Mono', monospace; color: var(--accent-green); font-weight: 600;">${formatMoney(data.total_value)}</span>
+                </div>
+            `;
         }
 
         async function loadTrades() {
@@ -3186,6 +3312,7 @@
             loadHoldings();
             loadTrades();
             loadStrategies();
+            loadSectorAllocation();
             loadPerformanceChart(currentPeriod);
             updateTicker();
         }
