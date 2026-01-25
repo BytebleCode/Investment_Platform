@@ -27,7 +27,7 @@ plotly>=5.18.0
 # Scientific Computing (no scipy - using numpy only)
 numpy>=1.26.0
 pandas>=2.1.0
-pandas_datareader>=0.10.0
+yfinance>=0.2.36
 
 # Utilities
 python-dateutil>=2.8.2

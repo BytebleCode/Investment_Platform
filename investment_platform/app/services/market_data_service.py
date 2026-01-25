@@ -1,8 +1,8 @@
 """
 Market Data Service
 
-Fetches real market data from Yahoo Finance via pandas_datareader.
-Implements intelligent caching in DB2 to minimize API calls and avoid rate limits.
+Fetches real market data from Yahoo Finance via yfinance.
+Implements intelligent caching to minimize API calls and avoid rate limits.
 """
 import logging
 import time
@@ -14,10 +14,10 @@ import pandas as pd
 import numpy as np
 
 try:
-    import pandas_datareader as pdr
-    PANDAS_DATAREADER_AVAILABLE = True
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
 except ImportError:
-    PANDAS_DATAREADER_AVAILABLE = False
+    YFINANCE_AVAILABLE = False
 
 import pytz
 
@@ -139,7 +139,7 @@ class MarketDataService:
 
     def _fetch_from_yahoo(self, symbol: str, start_date: date, end_date: date) -> Optional[pd.DataFrame]:
         """
-        Fetch data from Yahoo Finance.
+        Fetch data from Yahoo Finance using yfinance.
 
         Args:
             symbol: Stock ticker symbol
@@ -152,14 +152,19 @@ class MarketDataService:
         self.rate_limiter.wait_if_needed()
 
         try:
-            if not PANDAS_DATAREADER_AVAILABLE:
-                logger.error("pandas_datareader not available")
+            if not YFINANCE_AVAILABLE:
+                logger.error("yfinance not available")
                 return None
 
-            df = pdr.DataReader(symbol, 'yahoo', start_date, end_date)
+            # Create ticker object
+            ticker = yf.Ticker(symbol)
+
+            # Fetch historical data (end_date needs +1 day for yfinance)
+            end_date_adj = end_date + timedelta(days=1)
+            df = ticker.history(start=start_date, end=end_date_adj)
 
             if df.empty:
-                logger.warning(f"No data returned from pandas_datareader for {symbol}")
+                logger.warning(f"No data returned from yfinance for {symbol}")
                 return None
 
             # Rename columns to match our schema
@@ -168,10 +173,17 @@ class MarketDataService:
                 'High': 'high',
                 'Low': 'low',
                 'Close': 'close',
-                'Adj Close': 'adj_close',
                 'Volume': 'volume'
             })
-            df.index = df.index.date  # Convert to date
+
+            # yfinance doesn't have Adj Close in history(), use Close as adj_close
+            if 'adj_close' not in df.columns:
+                df['adj_close'] = df['close']
+
+            # Convert index to date
+            df.index = df.index.date
+
+            # Select only needed columns
             df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
 
             self.rate_limiter.handle_success()
