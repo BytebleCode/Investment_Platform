@@ -106,19 +106,41 @@ def update_settings():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
-    portfolio = PortfolioState.get_or_create()
-
-    # Update allowed fields
-    allowed_fields = ['initial_value', 'current_strategy', 'is_initialized']
-    for field in allowed_fields:
-        if field in data:
-            setattr(portfolio, field, data[field])
+    user_id = data.get('user_id', 'default')
 
     try:
-        db.session.commit()
-        return jsonify(portfolio.to_dict())
+        if is_csv_backend():
+            storage = get_csv_storage()
+            # Build update dict from allowed fields
+            update_data = {}
+            allowed_fields = ['initial_value', 'current_strategy', 'is_initialized']
+            for field in allowed_fields:
+                if field in data:
+                    update_data[field] = data[field]
+
+            if update_data:
+                storage.update_portfolio(user_id, **update_data)
+
+            portfolio = storage.get_portfolio(user_id)
+            return jsonify(portfolio)
+        else:
+            portfolio = PortfolioState.get_or_create(user_id)
+
+            # Update allowed fields
+            allowed_fields = ['initial_value', 'current_strategy', 'is_initialized']
+            for field in allowed_fields:
+                if field in data:
+                    setattr(portfolio, field, data[field])
+
+            session = get_scoped_session()
+            if session:
+                session.commit()
+            return jsonify(portfolio.to_dict())
     except Exception as e:
-        db.session.rollback()
+        if not is_csv_backend():
+            session = get_scoped_session()
+            if session:
+                session.rollback()
         return jsonify({'error': str(e)}), 500
 
 
@@ -132,14 +154,27 @@ def update_cash():
     if not data or 'current_cash' not in data:
         return jsonify({'error': 'current_cash is required'}), 400
 
-    portfolio = PortfolioState.get_or_create()
-    portfolio.current_cash = data['current_cash']
+    user_id = data.get('user_id', 'default')
 
     try:
-        db.session.commit()
-        return jsonify({'current_cash': float(portfolio.current_cash)})
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.update_portfolio(user_id, current_cash=data['current_cash'])
+            portfolio = storage.get_portfolio(user_id)
+            return jsonify({'current_cash': float(portfolio.get('current_cash', 0))})
+        else:
+            portfolio = PortfolioState.get_or_create(user_id)
+            portfolio.current_cash = data['current_cash']
+
+            session = get_scoped_session()
+            if session:
+                session.commit()
+            return jsonify({'current_cash': float(portfolio.current_cash)})
     except Exception as e:
-        db.session.rollback()
+        if not is_csv_backend():
+            session = get_scoped_session()
+            if session:
+                session.rollback()
         return jsonify({'error': str(e)}), 500
 
 
