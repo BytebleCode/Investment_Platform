@@ -29,11 +29,24 @@ from app.data.strategies import (
     get_target_investment_ratio,
     get_trade_frequency_seconds,
     is_valid_strategy,
-    get_strategy_summary
+    get_strategy_summary,
+    get_strategy_sector_allocation,
+    get_strategy_signals
+)
+
+from app.data.symbol_universe import (
+    SYMBOL_UNIVERSE,
+    SECTOR_METADATA,
+    get_all_sectors,
+    get_subsectors,
+    get_sector_symbols as get_universe_sector_symbols,
+    get_symbols_by_path,
+    get_sector_for_symbol,
+    get_sector_metadata
 )
 
 __all__ = [
-    # Stock Universe
+    # Stock Universe (legacy)
     'STOCK_UNIVERSE',
     'SECTORS',
     'get_all_symbols',
@@ -57,5 +70,16 @@ __all__ = [
     'get_target_investment_ratio',
     'get_trade_frequency_seconds',
     'is_valid_strategy',
-    'get_strategy_summary'
+    'get_strategy_summary',
+    'get_strategy_sector_allocation',
+    'get_strategy_signals',
+    # Symbol Universe (macro system)
+    'SYMBOL_UNIVERSE',
+    'SECTOR_METADATA',
+    'get_all_sectors',
+    'get_subsectors',
+    'get_universe_sector_symbols',
+    'get_symbols_by_path',
+    'get_sector_for_symbol',
+    'get_sector_metadata'
 ]

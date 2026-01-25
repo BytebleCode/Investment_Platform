@@ -12,6 +12,8 @@ from app.models import StrategyCustomization
 from app.data.strategies import STRATEGIES, STRATEGY_IDS, DEFAULT_CUSTOMIZATION
 from app.services.strategy_service import StrategyService
 from app.services.available_symbols import search_symbols, get_all_symbols
+from app.services.symbol_selector import get_sector_coverage_report, validate_strategy_allocation
+from app.data.symbol_universe import SYMBOL_UNIVERSE, SECTOR_METADATA, get_all_sectors
 
 strategy_bp = Blueprint('strategies', __name__)
 
@@ -348,3 +350,112 @@ def update_customization(strategy_id):
             if session:
                 session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+# ===== Macro Strategy Endpoints =====
+
+@strategy_bp.route('/<strategy_id>/regime', methods=['GET'])
+def get_strategy_regime(strategy_id):
+    """
+    GET /api/strategies/<strategy_id>/regime
+    Get the current macro regime for a strategy.
+
+    Returns regime score, label, and individual signal values.
+    """
+    user_id = request.args.get('user_id', 'default')
+    service = StrategyService(user_id)
+
+    strategy = service.get_strategy(strategy_id)
+    if not strategy:
+        return jsonify({'error': f'Strategy "{strategy_id}" not found'}), 404
+
+    regime = service.get_macro_regime(strategy_id)
+
+    return jsonify({
+        'strategy_id': strategy_id,
+        'regime': regime
+    })
+
+
+@strategy_bp.route('/regimes', methods=['GET'])
+def get_all_regimes():
+    """
+    GET /api/strategies/regimes
+    Get macro regime info for all system strategies.
+    """
+    user_id = request.args.get('user_id', 'default')
+    service = StrategyService(user_id)
+
+    regimes = service.get_all_regimes()
+    macro_enabled = service.is_macro_enabled()
+
+    return jsonify({
+        'regimes': regimes,
+        'macro_enabled': macro_enabled
+    })
+
+
+@strategy_bp.route('/sectors', methods=['GET'])
+def get_sectors():
+    """
+    GET /api/strategies/sectors
+    Get all available sectors and subsectors from the symbol universe.
+    """
+    sectors = {}
+    for sector in get_all_sectors():
+        metadata = SECTOR_METADATA.get(sector, {})
+        subsectors = list(SYMBOL_UNIVERSE.get(sector, {}).keys())
+        sectors[sector] = {
+            'name': metadata.get('name', sector.replace('_', ' ').title()),
+            'description': metadata.get('description', ''),
+            'color': metadata.get('color', '#6b7280'),
+            'subsectors': subsectors
+        }
+
+    return jsonify({
+        'sectors': sectors,
+        'count': len(sectors)
+    })
+
+
+@strategy_bp.route('/sectors/coverage', methods=['GET'])
+def get_sectors_coverage():
+    """
+    GET /api/strategies/sectors/coverage
+    Get coverage report showing universe vs available symbols by sector.
+    """
+    report = get_sector_coverage_report()
+
+    return jsonify({
+        'coverage': report
+    })
+
+
+@strategy_bp.route('/<strategy_id>/allocation', methods=['GET'])
+def get_strategy_allocation(strategy_id):
+    """
+    GET /api/strategies/<strategy_id>/allocation
+    Get the sector allocation and selected symbols for a strategy.
+    """
+    user_id = request.args.get('user_id', 'default')
+    service = StrategyService(user_id)
+
+    strategy = service.get_strategy(strategy_id)
+    if not strategy:
+        return jsonify({'error': f'Strategy "{strategy_id}" not found'}), 404
+
+    sector_allocation = strategy.get('sector_allocation', {})
+
+    # Validate allocation if it exists
+    validation = None
+    if sector_allocation:
+        validation = validate_strategy_allocation(sector_allocation)
+
+    return jsonify({
+        'strategy_id': strategy_id,
+        'sector_allocation': sector_allocation,
+        'stocks': strategy.get('stocks', []),
+        'max_symbols': strategy.get('max_symbols', 20),
+        'min_symbols': strategy.get('min_symbols', 10),
+        'validation': validation
+    })

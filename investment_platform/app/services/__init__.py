@@ -72,6 +72,23 @@ from app.services.available_symbols import (
     refresh_symbols
 )
 
+from app.services.symbol_selector import (
+    get_symbols_for_allocation,
+    get_symbols_for_strategy,
+    validate_strategy_allocation,
+    get_sector_coverage_report,
+    get_available_universe_symbols
+)
+
+from app.services.macro_signals import (
+    MacroSignalService,
+    get_macro_service,
+    get_regime_for_strategy,
+    clear_signal_cache,
+    SIGNAL_RANGES,
+    REGIME_THRESHOLDS
+)
+
 __all__ = [
     # Price Generator
     'generate_price',
@@ -130,5 +147,18 @@ __all__ = [
     'validate_symbols',
     'search_symbols',
     'get_symbol_count',
-    'refresh_symbols'
+    'refresh_symbols',
+    # Symbol Selector
+    'get_symbols_for_allocation',
+    'get_symbols_for_strategy',
+    'validate_strategy_allocation',
+    'get_sector_coverage_report',
+    'get_available_universe_symbols',
+    # Macro Signals
+    'MacroSignalService',
+    'get_macro_service',
+    'get_regime_for_strategy',
+    'clear_signal_cache',
+    'SIGNAL_RANGES',
+    'REGIME_THRESHOLDS'
 ]

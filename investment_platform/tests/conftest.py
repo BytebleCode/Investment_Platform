@@ -69,7 +69,7 @@ def sample_portfolio(db_session):
         user_id='test_user',
         initial_value=Decimal('100000.00'),
         current_cash=Decimal('50000.00'),
-        current_strategy='balanced',
+        current_strategy='monetary_policy',
         is_initialized=True,
         realized_gains=Decimal('1000.00')
     )
@@ -129,7 +129,7 @@ def sample_trades(db_session, sample_portfolio):
             price=Decimal('150.00'),
             total=Decimal('15000.00'),
             fees=Decimal('15.00'),
-            strategy='balanced'
+            strategy='monetary_policy'
         ),
         TradesHistory(
             user_id='test_user',
@@ -143,7 +143,7 @@ def sample_trades(db_session, sample_portfolio):
             price=Decimal('300.00'),
             total=Decimal('15000.00'),
             fees=Decimal('15.00'),
-            strategy='balanced'
+            strategy='monetary_policy'
         ),
         TradesHistory(
             user_id='test_user',
@@ -157,7 +157,7 @@ def sample_trades(db_session, sample_portfolio):
             price=Decimal('155.00'),
             total=Decimal('3100.00'),
             fees=Decimal('3.10'),
-            strategy='balanced'
+            strategy='monetary_policy'
         )
     ]
     for trade in trades:
@@ -171,7 +171,7 @@ def sample_strategy_customization(db_session, sample_portfolio):
     """Create sample strategy customization for testing."""
     customization = StrategyCustomization(
         user_id='test_user',
-        strategy_id='balanced',
+        strategy_id='monetary_policy',
         confidence_level=75,
         trade_frequency='medium',
         max_position_size=15,
@@ -282,7 +282,7 @@ def create_test_portfolio(db_session, user_id='test_user', cash=Decimal('100000'
         user_id=user_id,
         initial_value=Decimal('100000.00'),
         current_cash=cash,
-        current_strategy='balanced',
+        current_strategy='monetary_policy',
         is_initialized=True,
         realized_gains=Decimal('0')
     )

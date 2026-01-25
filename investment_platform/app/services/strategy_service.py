@@ -3,6 +3,11 @@ Strategy Service
 
 Unified interface for accessing both system strategies and user-created strategies.
 Provides CRUD operations for user strategies and merges results for backtest/trading.
+
+Supports:
+- System macro strategies with dynamic symbol selection
+- User-created custom strategies
+- FRED API macro signal integration for regime detection
 """
 import re
 import logging
@@ -12,6 +17,8 @@ from app.data.strategies import STRATEGIES, STRATEGY_IDS
 from app.models.user_strategy import UserStrategy
 from app.models.user_strategy_stocks import UserStrategyStock
 from app.services.available_symbols import validate_symbols
+from app.services.symbol_selector import get_symbols_for_strategy
+from app.services.macro_signals import get_regime_for_strategy, get_macro_service
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,12 @@ class StrategyService:
         if not strategy:
             return None
 
+        # Use dynamic symbol selection if sector_allocation exists
+        if strategy.get('sector_allocation'):
+            stocks = get_symbols_for_strategy(strategy)
+        else:
+            stocks = strategy.get('stocks', [])
+
         return {
             'id': strategy['id'],
             'strategy_id': strategy['id'],
@@ -57,11 +70,16 @@ class StrategyService:
             'trade_frequency_seconds': strategy['trade_frequency_seconds'],
             'target_investment_ratio': strategy['target_investment_ratio'],
             'max_position_pct': strategy['max_position_pct'],
-            'stocks': strategy['stocks'],
+            'stocks': stocks,
             'is_system': True,
             'based_on_template': None,
             'created_at': None,
-            'updated_at': None
+            'updated_at': None,
+            # Macro strategy fields
+            'sector_allocation': strategy.get('sector_allocation', {}),
+            'signals': strategy.get('signals', {}),
+            'max_symbols': strategy.get('max_symbols', 20),
+            'min_symbols': strategy.get('min_symbols', 10)
         }
 
     def _format_user_strategy(self, strategy):
@@ -385,3 +403,60 @@ class StrategyService:
         if strategy:
             return strategy.get('stocks', [])
         return []
+
+    def get_macro_regime(self, strategy_id):
+        """
+        Get the current macro regime for a strategy.
+
+        Args:
+            strategy_id: Strategy identifier
+
+        Returns:
+            dict: Regime info with score, label, and signal details
+        """
+        strategy = self.get_strategy(strategy_id)
+        if not strategy:
+            return {'score': 0.0, 'regime': 'neutral', 'enabled': False, 'signals': {}}
+
+        return get_regime_for_strategy(strategy)
+
+    def get_all_regimes(self):
+        """
+        Get macro regime info for all system strategies.
+
+        Returns:
+            dict: Strategy ID -> regime info
+        """
+        regimes = {}
+        for strategy_id in STRATEGY_IDS:
+            strategy = STRATEGIES.get(strategy_id)
+            if strategy and strategy.get('signals'):
+                regimes[strategy_id] = get_regime_for_strategy(strategy)
+        return regimes
+
+    def is_macro_enabled(self):
+        """Check if FRED API is configured for macro signals."""
+        service = get_macro_service()
+        return service.is_enabled()
+
+    def get_strategy_with_regime(self, strategy_id):
+        """
+        Get a strategy with its current macro regime included.
+
+        Args:
+            strategy_id: Strategy identifier
+
+        Returns:
+            dict: Strategy data with 'macro_regime' field added
+        """
+        strategy = self.get_strategy(strategy_id)
+        if not strategy:
+            return None
+
+        # Add regime info if strategy has signals
+        if strategy.get('signals'):
+            strategy['macro_regime'] = get_regime_for_strategy(strategy)
+        else:
+            strategy['macro_regime'] = {'score': 0.0, 'regime': 'neutral', 'enabled': False}
+
+        return strategy

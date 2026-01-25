@@ -1,87 +1,223 @@
 """
-Investment Strategy Definitions
+Macro Trading Strategy Definitions
 
-Contains the 5 investment strategies with their parameters, risk levels,
-target stocks, and trading behavior configurations.
+Contains 5 macro-driven investment strategies that:
+1. Define sector allocations (not hardcoded tickers)
+2. Dynamically select symbols from available universe
+3. Integrate FRED API macro signals for regime detection
+4. Support future expansion when more symbols become available
+
+Each strategy targets a specific macro regime/theme.
 """
+from app.services.symbol_selector import get_symbols_for_strategy
 
-# Investment Strategies
-# Note: Using only symbols available in local CSV data (alphabetically up to RVTY)
+
+# ============================================================================
+# MACRO PRESET STRATEGIES
+# ============================================================================
+
 STRATEGIES = {
-    'conservative': {
-        'id': 'conservative',
-        'name': 'Conservative',
-        'description': 'Low-risk strategy focused on stable, dividend-paying blue chips',
-        'risk_level': 1,
-        'expected_return': (2, 6),  # Annual return range in percent
-        'stocks': ['JNJ', 'PG', 'KO', 'PEP', 'DUK', 'NEE', 'MRK', 'CL', 'KMB', 'PEG'],
-        'volatility': 0.005,
-        'daily_drift': 0.00015,
-        'trade_frequency_seconds': 120,
-        'target_investment_ratio': 0.6,
-        'max_position_pct': 0.15,
-        'color': '#22c55e'  # Green
-    },
-    'growth': {
-        'id': 'growth',
-        'name': 'Growth',
-        'description': 'High-growth focus on technology and innovation leaders',
-        'risk_level': 4,
-        'expected_return': (10, 25),
-        'stocks': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'AMD', 'CRM', 'NFLX', 'NOW', 'ADBE'],
-        'volatility': 0.015,
-        'daily_drift': 0.0005,
-        'trade_frequency_seconds': 60,
-        'target_investment_ratio': 0.8,
-        'max_position_pct': 0.20,
-        'color': '#3b82f6'  # Blue
-    },
-    'value': {
-        'id': 'value',
-        'name': 'Value',
-        'description': 'Focus on undervalued stocks with strong fundamentals',
-        'risk_level': 2,
-        'expected_return': (6, 12),
-        'stocks': ['BLK', 'JPM', 'BAC', 'GS', 'MA', 'PFE', 'CVS', 'IBM', 'MET', 'PRU'],
-        'volatility': 0.008,
+    # ========================================================================
+    # STRATEGY 1: MONETARY POLICY (Rate Regime)
+    # ========================================================================
+    'monetary_policy': {
+        'id': 'monetary_policy',
+        'name': 'Monetary Policy',
+        'description': 'Trades rate-sensitive assets based on Fed policy. Banks benefit from rate hikes, utilities from cuts. Treasury futures for duration exposure.',
+        'risk_level': 3,
+        'expected_return': (5, 18),
+        'color': '#3b82f6',  # Blue
+        'volatility': 0.012,
         'daily_drift': 0.0003,
         'trade_frequency_seconds': 90,
         'target_investment_ratio': 0.7,
-        'max_position_pct': 0.18,
-        'color': '#a855f7'  # Purple
+        'max_position_pct': 0.12,
+
+        # DYNAMIC SYMBOL SELECTION
+        'sector_allocation': {
+            'financials.banks': 0.35,
+            'financials.asset_managers': 0.10,
+            'financials.exchanges': 0.10,
+            'utilities.electric': 0.25,
+            'futures.treasury': 0.10,
+            'real_estate.data_centers': 0.10
+        },
+        'max_symbols': 20,
+        'min_symbols': 12,
+
+        # MACRO SIGNALS (FRED API)
+        'signals': {
+            'fed_funds_rate': {'series': 'FEDFUNDS', 'weight': 0.30},
+            'yield_curve_2y10y': {'series': 'T10Y2Y', 'weight': 0.35},
+            'real_rates': {'series': 'DFII10', 'weight': 0.20},
+            'financial_conditions': {'series': 'NFCI', 'weight': 0.15}
+        },
+
+        # Fallback static stocks (used if sector_allocation fails)
+        'stocks': ['JPM', 'BAC', 'GS', 'MS', 'BLK', 'CME', 'NEE', 'DUK', 'AEP', 'SO']
     },
-    'balanced': {
-        'id': 'balanced',
-        'name': 'Balanced',
-        'description': 'Diversified mix of growth and stability across sectors',
-        'risk_level': 3,
-        'expected_return': (5, 12),
-        'stocks': ['AAPL', 'MSFT', 'JNJ', 'PG', 'JPM', 'KO', 'CAT', 'HON', 'LMT', 'MMM'],
-        'volatility': 0.01,
-        'daily_drift': 0.00035,
-        'trade_frequency_seconds': 75,
-        'target_investment_ratio': 0.7,
-        'max_position_pct': 0.15,
-        'color': '#f59e0b'  # Amber
-    },
-    'aggressive': {
-        'id': 'aggressive',
-        'name': 'Aggressive',
-        'description': 'High-risk, high-reward speculation on volatile stocks',
-        'risk_level': 5,
-        'expected_return': (-20, 50),
-        'stocks': ['COIN', 'PLTR', 'NVDA', 'AMD', 'BA', 'CRWD', 'PANW', 'ABNB'],
-        'volatility': 0.025,
+
+    # ========================================================================
+    # STRATEGY 2: INFLATION HEDGE (Price Pressure Regime)
+    # ========================================================================
+    'inflation_hedge': {
+        'id': 'inflation_hedge',
+        'name': 'Inflation Hedge',
+        'description': 'Commodity producers and real assets for inflationary periods. Energy, materials, gold, and agricultural exposure. Best when CPI rising.',
+        'risk_level': 4,
+        'expected_return': (8, 25),
+        'color': '#f59e0b',  # Amber
+        'volatility': 0.018,
         'daily_drift': 0.0004,
-        'trade_frequency_seconds': 45,
-        'target_investment_ratio': 0.9,
-        'max_position_pct': 0.25,
-        'color': '#ef4444'  # Red
+        'trade_frequency_seconds': 75,
+        'target_investment_ratio': 0.75,
+        'max_position_pct': 0.10,
+
+        'sector_allocation': {
+            'energy.integrated': 0.18,
+            'energy.exploration': 0.15,
+            'energy.refining': 0.10,
+            'materials.mining': 0.15,
+            'materials.chemicals': 0.12,
+            'materials.agriculture': 0.05,
+            'futures.energy': 0.10,
+            'futures.metals': 0.10,
+            'futures.agriculture': 0.05
+        },
+        'max_symbols': 22,
+        'min_symbols': 15,
+
+        'signals': {
+            'cpi_yoy': {'series': 'CPIAUCSL', 'weight': 0.35, 'transform': 'yoy'},
+            'core_pce': {'series': 'PCEPILFE', 'weight': 0.25, 'transform': 'yoy'},
+            'breakeven_10y': {'series': 'T10YIE', 'weight': 0.25},
+            'commodity_index': {'series': 'PPIACO', 'weight': 0.15, 'transform': 'yoy'}
+        },
+
+        'stocks': ['XOM', 'CVX', 'COP', 'EOG', 'FCX', 'NEM', 'APD', 'LIN', 'MPC', 'PSX']
+    },
+
+    # ========================================================================
+    # STRATEGY 3: GROWTH EXPANSION (Risk-On Regime)
+    # ========================================================================
+    'growth_expansion': {
+        'id': 'growth_expansion',
+        'name': 'Growth Expansion',
+        'description': 'High-beta growth and cyclicals for economic expansion. Tech, industrials, discretionary. Best when PMI rising and credit tight.',
+        'risk_level': 5,
+        'expected_return': (12, 35),
+        'color': '#22c55e',  # Green
+        'volatility': 0.022,
+        'daily_drift': 0.0005,
+        'trade_frequency_seconds': 60,
+        'target_investment_ratio': 0.85,
+        'max_position_pct': 0.08,
+
+        'sector_allocation': {
+            'technology.semiconductors': 0.25,
+            'technology.software': 0.15,
+            'technology.internet': 0.10,
+            'industrials.machinery': 0.10,
+            'industrials.transport': 0.10,
+            'consumer_discretionary.retail': 0.10,
+            'consumer_discretionary.restaurants': 0.05,
+            'financials.payments': 0.10,
+            'currency.pairs': 0.03,
+            'crypto.major': 0.02
+        },
+        'max_symbols': 25,
+        'min_symbols': 18,
+
+        'signals': {
+            'ism_pmi': {'series': 'ISM/MAN_PMI', 'weight': 0.30},
+            'industrial_production': {'series': 'INDPRO', 'weight': 0.20, 'transform': 'yoy'},
+            'retail_sales': {'series': 'RSAFS', 'weight': 0.20, 'transform': 'yoy'},
+            'leading_index': {'series': 'USSLIND', 'weight': 0.30}
+        },
+
+        'stocks': ['NVDA', 'AMD', 'MSFT', 'GOOGL', 'AMZN', 'CAT', 'DE', 'UNP', 'HD', 'V']
+    },
+
+    # ========================================================================
+    # STRATEGY 4: DEFENSIVE QUALITY (Risk-Off Regime)
+    # ========================================================================
+    'defensive_quality': {
+        'id': 'defensive_quality',
+        'name': 'Defensive Quality',
+        'description': 'Low-volatility defensives for late cycle and recession. Utilities, healthcare, staples. Gold as safe haven. Capital preservation focus.',
+        'risk_level': 1,
+        'expected_return': (2, 8),
+        'color': '#8b5cf6',  # Purple
+        'volatility': 0.006,
+        'daily_drift': 0.0002,
+        'trade_frequency_seconds': 120,
+        'target_investment_ratio': 0.6,
+        'max_position_pct': 0.15,
+
+        'sector_allocation': {
+            'utilities.electric': 0.28,
+            'consumer_staples.food': 0.18,
+            'consumer_staples.household': 0.10,
+            'healthcare.pharma': 0.22,
+            'healthcare.services': 0.12,
+            'futures.metals': 0.10  # Gold
+        },
+        'max_symbols': 22,
+        'min_symbols': 15,
+
+        'signals': {
+            'ism_pmi': {'series': 'ISM/MAN_PMI', 'weight': 0.25, 'invert': True},
+            'yield_curve': {'series': 'T10Y2Y', 'weight': 0.25, 'invert': True},
+            'credit_spreads': {'series': 'BAMLH0A0HYM2', 'weight': 0.30},
+            'unemployment_claims': {'series': 'ICSA', 'weight': 0.20}
+        },
+
+        'stocks': ['NEE', 'DUK', 'SO', 'JNJ', 'PFE', 'MRK', 'PG', 'KO', 'CL', 'KMB']
+    },
+
+    # ========================================================================
+    # STRATEGY 5: LIQUIDITY CYCLE (Credit Conditions Regime)
+    # ========================================================================
+    'liquidity_cycle': {
+        'id': 'liquidity_cycle',
+        'name': 'Liquidity Cycle',
+        'description': 'Trades liquidity-sensitive assets based on credit conditions. Risk-on when liquidity loose, defensive when tightening. Tracks NFCI and HY spreads.',
+        'risk_level': 4,
+        'expected_return': (6, 22),
+        'color': '#ef4444',  # Red
+        'volatility': 0.016,
+        'daily_drift': 0.00035,
+        'trade_frequency_seconds': 70,
+        'target_investment_ratio': 0.7,
+        'max_position_pct': 0.10,
+
+        'sector_allocation': {
+            'technology.semiconductors': 0.18,
+            'financials.banks': 0.15,
+            'financials.asset_managers': 0.12,
+            'real_estate.data_centers': 0.12,
+            'industrials.aerospace': 0.12,
+            'consumer_discretionary.retail': 0.11,
+            'futures.metals': 0.10,
+            'currency.pairs': 0.05,
+            'crypto.major': 0.05
+        },
+        'max_symbols': 24,
+        'min_symbols': 16,
+
+        'signals': {
+            'credit_spreads_hy': {'series': 'BAMLH0A0HYM2', 'weight': 0.35},
+            'financial_conditions': {'series': 'NFCI', 'weight': 0.25},
+            'm2_growth': {'series': 'M2SL', 'weight': 0.20, 'transform': 'yoy'},
+            'bank_lending': {'series': 'DRTSCILM', 'weight': 0.20}
+        },
+
+        'stocks': ['NVDA', 'AMD', 'JPM', 'BLK', 'BX', 'EQIX', 'BA', 'LMT', 'HD', 'COIN']
     }
 }
 
-# Strategy IDs for iteration
-STRATEGY_IDS = ['conservative', 'growth', 'value', 'balanced', 'aggressive']
+# Strategy IDs for iteration (in display order)
+STRATEGY_IDS = ['monetary_policy', 'inflation_hedge', 'growth_expansion', 'defensive_quality', 'liquidity_cycle']
 
 # Default customization values
 DEFAULT_CUSTOMIZATION = {
@@ -102,12 +238,16 @@ TRADE_FREQUENCY_MULTIPLIERS = {
 }
 
 
+# ============================================================================
+# STRATEGY ACCESS FUNCTIONS
+# ============================================================================
+
 def get_strategy(strategy_id: str) -> dict:
     """
     Get strategy configuration by ID.
 
     Args:
-        strategy_id: Strategy identifier (conservative, growth, etc.)
+        strategy_id: Strategy identifier
 
     Returns:
         Strategy dict or None if not found
@@ -128,6 +268,7 @@ def get_all_strategies() -> list:
 def get_strategy_stocks(strategy_id: str) -> list:
     """
     Get list of stock symbols for a strategy.
+    Uses dynamic symbol selection if sector_allocation is defined.
 
     Args:
         strategy_id: Strategy identifier
@@ -136,7 +277,15 @@ def get_strategy_stocks(strategy_id: str) -> list:
         List of stock symbols or empty list
     """
     strategy = get_strategy(strategy_id)
-    return strategy['stocks'] if strategy else []
+    if not strategy:
+        return []
+
+    # Use dynamic selection if sector_allocation exists
+    if strategy.get('sector_allocation'):
+        return get_symbols_for_strategy(strategy)
+
+    # Fall back to static stocks
+    return strategy.get('stocks', [])
 
 
 def get_strategy_risk_level(strategy_id: str) -> int:
@@ -228,6 +377,9 @@ def get_strategy_summary(strategy_id: str) -> dict:
     if not strategy:
         return None
 
+    # Get dynamic stocks count
+    stocks = get_strategy_stocks(strategy_id)
+
     return {
         'id': strategy['id'],
         'name': strategy['name'],
@@ -236,5 +388,39 @@ def get_strategy_summary(strategy_id: str) -> dict:
         'expected_return_min': strategy['expected_return'][0],
         'expected_return_max': strategy['expected_return'][1],
         'color': strategy['color'],
-        'num_stocks': len(strategy['stocks'])
+        'num_stocks': len(stocks),
+        'sector_allocation': strategy.get('sector_allocation', {}),
+        'has_macro_signals': bool(strategy.get('signals'))
     }
+
+
+def get_strategy_sector_allocation(strategy_id: str) -> dict:
+    """
+    Get the sector allocation for a strategy.
+
+    Args:
+        strategy_id: Strategy identifier
+
+    Returns:
+        Dict mapping sector paths to weights
+    """
+    strategy = get_strategy(strategy_id)
+    if not strategy:
+        return {}
+    return strategy.get('sector_allocation', {})
+
+
+def get_strategy_signals(strategy_id: str) -> dict:
+    """
+    Get the macro signal configuration for a strategy.
+
+    Args:
+        strategy_id: Strategy identifier
+
+    Returns:
+        Dict of signal configurations
+    """
+    strategy = get_strategy(strategy_id)
+    if not strategy:
+        return {}
+    return strategy.get('signals', {})
