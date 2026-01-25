@@ -1,5 +1,6 @@
-# Text files
+# Text files (except requirements.txt)
 *.txt
+!requirements.txt
 
 # Archives
 *.zip

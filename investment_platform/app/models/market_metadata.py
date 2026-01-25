@@ -4,10 +4,12 @@ Market Data Metadata Model
 Tracks cache status for each symbol to enable smart cache refresh.
 """
 from datetime import datetime, date, timezone
-from app import db
+from sqlalchemy import Column, Integer, String, DateTime, Date
+
+from app.database import Base, get_scoped_session
 
 
-class MarketDataMetadata(db.Model):
+class MarketDataMetadata(Base):
     """
     Tracks metadata about cached market data for each symbol.
 
@@ -26,14 +28,14 @@ class MarketDataMetadata(db.Model):
     """
     __tablename__ = 'market_data_metadata'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    symbol = db.Column(db.String(10), unique=True, nullable=False, index=True)
-    last_fetch_date = db.Column(db.Date, nullable=True)
-    earliest_date = db.Column(db.Date, nullable=True)
-    latest_date = db.Column(db.Date, nullable=True)
-    total_records = db.Column(db.Integer, nullable=True, default=0)
-    last_updated = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    fetch_status = db.Column(db.String(20), nullable=False, default='pending')
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(10), unique=True, nullable=False, index=True)
+    last_fetch_date = Column(Date, nullable=True)
+    earliest_date = Column(Date, nullable=True)
+    latest_date = Column(Date, nullable=True)
+    total_records = Column(Integer, nullable=True, default=0)
+    last_updated = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    fetch_status = Column(String(20), nullable=False, default='pending')
 
     # Valid status values
     STATUS_PENDING = 'pending'
@@ -117,17 +119,19 @@ class MarketDataMetadata(db.Model):
         Returns:
             MarketDataMetadata instance
         """
-        metadata = cls.query.filter_by(symbol=symbol).first()
+        session = get_scoped_session()
+        metadata = session.query(cls).filter_by(symbol=symbol).first()
         if not metadata:
             metadata = cls(symbol=symbol)
-            db.session.add(metadata)
-            db.session.commit()
+            session.add(metadata)
+            session.commit()
         return metadata
 
     @classmethod
     def get_all_symbols(cls):
         """Get list of all symbols with cached data."""
-        results = db.session.query(cls.symbol).all()
+        session = get_scoped_session()
+        results = session.query(cls.symbol).all()
         return [r[0] for r in results]
 
     @classmethod
@@ -144,7 +148,8 @@ class MarketDataMetadata(db.Model):
         if before_date is None:
             before_date = date.today()
 
-        results = cls.query.filter(
+        session = get_scoped_session()
+        results = session.query(cls).filter(
             (cls.latest_date < before_date) | (cls.latest_date.is_(None))
         ).all()
         return [r.symbol for r in results]
@@ -168,4 +173,5 @@ class MarketDataMetadata(db.Model):
     @classmethod
     def delete_metadata(cls, symbol):
         """Delete metadata for a symbol."""
-        return cls.query.filter_by(symbol=symbol).delete()
+        session = get_scoped_session()
+        return session.query(cls).filter_by(symbol=symbol).delete()

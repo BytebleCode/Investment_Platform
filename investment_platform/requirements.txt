@@ -1,0 +1,43 @@
+# Investment Platform - Python Dependencies
+# ==========================================
+# Compatible with Python 3.9 - 3.13
+# Mainframe compatible - uses packages available on IBM z/OS
+
+# Web Framework
+Flask>=2.3.0
+Flask-RESTful>=0.3.10
+Flask-CORS>=4.0.0
+Werkzeug>=3.0.0
+Jinja2>=3.1.0
+gunicorn>=21.0.0
+
+# Database (plain SQLAlchemy - no Flask-SQLAlchemy)
+SQLAlchemy>=2.0.0
+
+# IBM DB2 Support (uncomment when deploying to mainframe)
+# ibm_db>=3.2.0
+# ibm_db_sa>=0.4.0
+
+# Dashboard
+dash>=2.14.0
+dash-mantine-components>=0.14.0
+dash-iconify>=0.1.2
+plotly>=5.18.0
+
+# Scientific Computing (no scipy - using numpy only)
+numpy>=1.26.0
+pandas>=2.1.0
+pandas_datareader>=0.10.0
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Development
+ipython>=8.12.0

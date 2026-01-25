@@ -99,7 +99,7 @@ class TestCacheHit:
             service = MarketDataService()
 
             # Data is already in cache via sample_market_data fixture
-            with patch('yfinance.download') as mock_download:
+            with patch('pandas_datareader.DataReader') as mock_download:
                 result = service.get_price_data(
                     'AAPL',
                     sample_market_data[0].date,
@@ -176,7 +176,7 @@ class TestRateLimiting:
         with app.app_context():
             service = MarketDataService()
 
-            with patch('yfinance.download') as mock_download:
+            with patch('pandas_datareader.DataReader') as mock_download:
                 with patch('time.sleep') as mock_sleep:
                     mock_download.return_value = pd.DataFrame({
                         'Open': [150], 'High': [152], 'Low': [148],
@@ -212,7 +212,7 @@ class TestRateLimiting:
                     'Close': [151], 'Adj Close': [151], 'Volume': [1000000]
                 }, index=[pd.Timestamp.now()])
 
-            with patch('yfinance.download', side_effect=mock_download_with_rate_limit):
+            with patch('pandas_datareader.DataReader', side_effect=mock_download_with_rate_limit):
                 with patch('time.sleep') as mock_sleep:
                     try:
                         service.get_price_data(
@@ -239,7 +239,7 @@ class TestFallback:
         with app.app_context():
             service = MarketDataService()
 
-            with patch('yfinance.download', side_effect=Exception("Service unavailable")):
+            with patch('pandas_datareader.DataReader', side_effect=Exception("Service unavailable")):
                 result = service.get_price_data(
                     'AAPL',
                     date.today() - timedelta(days=5),
@@ -256,7 +256,7 @@ class TestFallback:
         with app.app_context():
             service = MarketDataService()
 
-            with patch('yfinance.download', side_effect=Exception("Error")):
+            with patch('pandas_datareader.DataReader', side_effect=Exception("Error")):
                 result = service.get_current_price('AAPL', allow_fallback=True)
 
                 if result:
@@ -267,7 +267,7 @@ class TestFallback:
         with app.app_context():
             service = MarketDataService()
 
-            with patch('yfinance.download', side_effect=Exception("Error")):
+            with patch('pandas_datareader.DataReader', side_effect=Exception("Error")):
                 with pytest.raises(Exception):
                     service.get_price_data(
                         'AAPL',
@@ -363,7 +363,7 @@ class TestCurrentPrice:
             latest.fetched_at = datetime.now()
             db_session.commit()
 
-            with patch('yfinance.download') as mock_download:
+            with patch('pandas_datareader.DataReader') as mock_download:
                 result = service.get_current_price('AAPL')
 
                 # Should use cache if recent enough
@@ -399,7 +399,7 @@ class TestBatchFetching:
             symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA',
                       'META', 'NVDA', 'AMD', 'INTC', 'ORCL']
 
-            with patch('yfinance.download') as mock_download:
+            with patch('pandas_datareader.DataReader') as mock_download:
                 mock_download.return_value = pd.DataFrame()
 
                 service.fetch_multiple_symbols(
@@ -494,7 +494,7 @@ class TestDataQuality:
                 'Volume': [1000000, 1100000, 1200000]
             }, index=pd.date_range(start='2024-01-01', periods=3))
 
-            with patch('yfinance.download', return_value=incomplete_data):
+            with patch('pandas_datareader.DataReader', return_value=incomplete_data):
                 result = service.get_price_data(
                     'TEST',
                     date(2024, 1, 1),
@@ -519,7 +519,7 @@ class TestDataQuality:
                 'Volume': [1000000, 1100000, 1200000]
             }, index=pd.date_range(start='2024-01-01', periods=3))
 
-            with patch('yfinance.download', return_value=bad_data):
+            with patch('pandas_datareader.DataReader', return_value=bad_data):
                 result = service.get_price_data(
                     'TEST',
                     date(2024, 1, 1),

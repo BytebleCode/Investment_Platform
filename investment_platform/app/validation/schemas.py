@@ -1,284 +1,543 @@
 """
-Marshmallow Validation Schemas
+Simple Validation Functions
 
 Provides input validation for all API endpoints to ensure
 data integrity and prevent injection attacks.
+No external dependencies required.
 """
-from marshmallow import Schema, fields, validate, validates, ValidationError, post_load
-from decimal import Decimal
-from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone, date
 
 from app.data.strategies import STRATEGIES
 from app.data.stock_universe import STOCK_UNIVERSE
 
 
-class PortfolioSettingsSchema(Schema):
-    """Schema for portfolio settings updates."""
-
-    initial_value = fields.Decimal(
-        places=2,
-        validate=validate.Range(min=Decimal('1000'), max=Decimal('100000000')),
-        load_default=None
-    )
-    current_cash = fields.Decimal(
-        places=2,
-        validate=validate.Range(min=Decimal('0')),
-        load_default=None
-    )
-    current_strategy = fields.Str(
-        validate=validate.OneOf(list(STRATEGIES.keys())),
-        load_default=None
-    )
-    is_initialized = fields.Bool(load_default=None)
-    realized_gains = fields.Decimal(
-        places=2,
-        load_default=None
-    )
-
-    @validates('current_cash')
-    def validate_cash(self, value):
-        """Cash cannot be negative."""
-        if value is not None and value < 0:
-            raise ValidationError('Cash balance cannot be negative')
+class ValidationError(Exception):
+    """Raised when validation fails."""
+    def __init__(self, errors):
+        self.errors = errors if isinstance(errors, dict) else {'_error': errors}
+        super().__init__(str(errors))
 
 
-class CashUpdateSchema(Schema):
-    """Schema for cash balance updates."""
+def validate_decimal(value, field_name, min_val=None, max_val=None, required=True):
+    """Validate a decimal value."""
+    if value is None:
+        if required:
+            return None, f"{field_name} is required"
+        return None, None
 
-    current_cash = fields.Decimal(
-        required=True,
-        places=2,
-        validate=validate.Range(min=Decimal('0'))
-    )
-
-
-class StrategyCustomizationSchema(Schema):
-    """Schema for strategy customization updates."""
-
-    confidence_level = fields.Int(
-        validate=validate.Range(min=10, max=100),
-        load_default=None
-    )
-    trade_frequency = fields.Str(
-        validate=validate.OneOf(['low', 'medium', 'high']),
-        load_default=None
-    )
-    max_position_size = fields.Int(
-        validate=validate.Range(min=5, max=50),
-        load_default=None
-    )
-    stop_loss_percent = fields.Int(
-        validate=validate.Range(min=5, max=30),
-        load_default=None
-    )
-    take_profit_percent = fields.Int(
-        validate=validate.Range(min=10, max=100),
-        load_default=None
-    )
-    auto_rebalance = fields.Bool(load_default=None)
-    reinvest_dividends = fields.Bool(load_default=None)
+    try:
+        dec_val = Decimal(str(value))
+        if min_val is not None and dec_val < Decimal(str(min_val)):
+            return None, f"{field_name} must be at least {min_val}"
+        if max_val is not None and dec_val > Decimal(str(max_val)):
+            return None, f"{field_name} must be at most {max_val}"
+        return dec_val, None
+    except (InvalidOperation, ValueError):
+        return None, f"{field_name} must be a valid number"
 
 
-class TradeSchema(Schema):
-    """Schema for trade creation."""
+def validate_int(value, field_name, min_val=None, max_val=None, required=True):
+    """Validate an integer value."""
+    if value is None:
+        if required:
+            return None, f"{field_name} is required"
+        return None, None
 
-    trade_id = fields.Str(
-        required=True,
-        validate=validate.Length(min=1, max=100)
-    )
-    timestamp = fields.DateTime(
-        required=False,
-        load_default=None
-    )
-    type = fields.Str(
-        required=True,
-        validate=validate.OneOf(['buy', 'sell'])
-    )
-    symbol = fields.Str(
-        required=True,
-        validate=validate.Length(min=1, max=10)
-    )
-    stock_name = fields.Str(
-        validate=validate.Length(max=100),
-        load_default=None
-    )
-    sector = fields.Str(
-        validate=validate.Length(max=50),
-        load_default=None
-    )
-    quantity = fields.Int(
-        required=True,
-        validate=validate.Range(min=1)
-    )
-    price = fields.Decimal(
-        required=True,
-        places=4,
-        validate=validate.Range(min=Decimal('0.0001'))
-    )
-    total = fields.Decimal(
-        required=True,
-        places=2,
-        validate=validate.Range(min=Decimal('0.01'))
-    )
-    fees = fields.Decimal(
-        places=2,
-        validate=validate.Range(min=Decimal('0')),
-        load_default=Decimal('0')
-    )
-    strategy = fields.Str(
-        validate=validate.OneOf(list(STRATEGIES.keys())),
-        load_default=None
-    )
-
-    @validates('symbol')
-    def validate_symbol(self, value):
-        """Symbol should be uppercase alphanumeric."""
-        if not value.replace('.', '').isalnum():
-            raise ValidationError('Symbol must be alphanumeric')
-        if value != value.upper():
-            raise ValidationError('Symbol must be uppercase')
-
-    @validates('total')
-    def validate_total(self, value):
-        """Total should be roughly quantity * price."""
-        # Validation is approximate due to fees
-        pass
-
-    @post_load
-    def set_defaults(self, data, **kwargs):
-        """Set default values after loading."""
-        if data.get('timestamp') is None:
-            data['timestamp'] = datetime.now(timezone.utc)
-
-        # Look up stock info if not provided
-        symbol = data.get('symbol')
-        if symbol and symbol in STOCK_UNIVERSE:
-            stock = STOCK_UNIVERSE[symbol]
-            if not data.get('stock_name'):
-                data['stock_name'] = stock.get('name')
-            if not data.get('sector'):
-                data['sector'] = stock.get('sector')
-
-        return data
+    try:
+        int_val = int(value)
+        if min_val is not None and int_val < min_val:
+            return None, f"{field_name} must be at least {min_val}"
+        if max_val is not None and int_val > max_val:
+            return None, f"{field_name} must be at most {max_val}"
+        return int_val, None
+    except (ValueError, TypeError):
+        return None, f"{field_name} must be a valid integer"
 
 
-class HoldingSchema(Schema):
-    """Schema for holding data."""
+def validate_string(value, field_name, min_len=None, max_len=None, choices=None, required=True):
+    """Validate a string value."""
+    if value is None or value == '':
+        if required:
+            return None, f"{field_name} is required"
+        return None, None
 
-    symbol = fields.Str(
-        required=True,
-        validate=validate.Length(min=1, max=10)
-    )
-    name = fields.Str(
-        validate=validate.Length(max=100),
-        load_default=None
-    )
-    sector = fields.Str(
-        validate=validate.Length(max=50),
-        load_default=None
-    )
-    quantity = fields.Decimal(
-        required=True,
-        places=4,
-        validate=validate.Range(min=Decimal('0'))
-    )
-    avg_cost = fields.Decimal(
-        required=True,
-        places=4,
-        validate=validate.Range(min=Decimal('0'))
-    )
-
-    @validates('symbol')
-    def validate_symbol(self, value):
-        """Symbol should be uppercase."""
-        if value != value.upper():
-            raise ValidationError('Symbol must be uppercase')
+    str_val = str(value)
+    if min_len is not None and len(str_val) < min_len:
+        return None, f"{field_name} must be at least {min_len} characters"
+    if max_len is not None and len(str_val) > max_len:
+        return None, f"{field_name} must be at most {max_len} characters"
+    if choices is not None and str_val not in choices:
+        return None, f"{field_name} must be one of: {', '.join(choices)}"
+    return str_val, None
 
 
-class HoldingsListSchema(Schema):
-    """Schema for bulk holdings update."""
+def validate_bool(value, field_name, required=True):
+    """Validate a boolean value."""
+    if value is None:
+        if required:
+            return None, f"{field_name} is required"
+        return None, None
 
-    holdings = fields.List(
-        fields.Nested(HoldingSchema),
-        required=True
-    )
-
-
-class MarketDataRequestSchema(Schema):
-    """Schema for market data requests."""
-
-    symbol = fields.Str(
-        validate=validate.Length(min=1, max=10)
-    )
-    symbols = fields.List(
-        fields.Str(validate=validate.Length(min=1, max=10)),
-        validate=validate.Length(max=50)  # Max 50 symbols per request
-    )
-    start_date = fields.Date()
-    end_date = fields.Date()
-    interval = fields.Str(
-        validate=validate.OneOf(['daily', 'weekly', 'monthly']),
-        load_default='daily'
-    )
-
-    @validates('symbols')
-    def validate_symbols(self, value):
-        """All symbols should be uppercase."""
-        if value:
-            for symbol in value:
-                if symbol != symbol.upper():
-                    raise ValidationError(f'Symbol {symbol} must be uppercase')
+    if isinstance(value, bool):
+        return value, None
+    if str(value).lower() in ('true', '1', 'yes'):
+        return True, None
+    if str(value).lower() in ('false', '0', 'no'):
+        return False, None
+    return None, f"{field_name} must be a boolean"
 
 
-class CacheRefreshSchema(Schema):
-    """Schema for cache refresh requests."""
+def validate_datetime(value, field_name, required=True):
+    """Validate a datetime value."""
+    if value is None:
+        if required:
+            return None, f"{field_name} is required"
+        return None, None
 
-    symbols = fields.List(
-        fields.Str(validate=validate.Length(min=1, max=10)),
-        required=True,
-        validate=validate.Length(min=1, max=20)  # Max 20 symbols per refresh
-    )
+    if isinstance(value, datetime):
+        return value, None
 
-
-class AutoTradeRequestSchema(Schema):
-    """Schema for auto-trade execution."""
-
-    prices = fields.Dict(
-        keys=fields.Str(),
-        values=fields.Decimal(places=4),
-        required=True
-    )
+    try:
+        return datetime.fromisoformat(str(value).replace('Z', '+00:00')), None
+    except (ValueError, TypeError):
+        return None, f"{field_name} must be a valid datetime"
 
 
-def validate_request(schema_class, data: dict) -> tuple:
+def validate_date(value, field_name, required=True):
+    """Validate a date value."""
+    if value is None:
+        if required:
+            return None, f"{field_name} is required"
+        return None, None
+
+    if isinstance(value, date):
+        return value, None
+
+    try:
+        return date.fromisoformat(str(value)), None
+    except (ValueError, TypeError):
+        return None, f"{field_name} must be a valid date (YYYY-MM-DD)"
+
+
+def validate_symbol(value, field_name='symbol', required=True):
+    """Validate a stock symbol."""
+    val, err = validate_string(value, field_name, min_len=1, max_len=10, required=required)
+    if err:
+        return None, err
+    if val is None:
+        return None, None
+
+    # Symbol should be uppercase alphanumeric (allowing dots for BRK.A etc)
+    if not val.replace('.', '').isalnum():
+        return None, f"{field_name} must be alphanumeric"
+    if val != val.upper():
+        return None, f"{field_name} must be uppercase"
+    return val, None
+
+
+def validate_portfolio_settings(data):
+    """Validate portfolio settings update."""
+    errors = {}
+    validated = {}
+
+    if 'initial_value' in data:
+        val, err = validate_decimal(data['initial_value'], 'initial_value',
+                                    min_val=1000, max_val=100000000, required=False)
+        if err:
+            errors['initial_value'] = err
+        elif val is not None:
+            validated['initial_value'] = val
+
+    if 'current_cash' in data:
+        val, err = validate_decimal(data['current_cash'], 'current_cash',
+                                    min_val=0, required=False)
+        if err:
+            errors['current_cash'] = err
+        elif val is not None:
+            validated['current_cash'] = val
+
+    if 'current_strategy' in data:
+        val, err = validate_string(data['current_strategy'], 'current_strategy',
+                                   choices=list(STRATEGIES.keys()), required=False)
+        if err:
+            errors['current_strategy'] = err
+        elif val is not None:
+            validated['current_strategy'] = val
+
+    if 'is_initialized' in data:
+        val, err = validate_bool(data['is_initialized'], 'is_initialized', required=False)
+        if err:
+            errors['is_initialized'] = err
+        elif val is not None:
+            validated['is_initialized'] = val
+
+    if 'realized_gains' in data:
+        val, err = validate_decimal(data['realized_gains'], 'realized_gains', required=False)
+        if err:
+            errors['realized_gains'] = err
+        elif val is not None:
+            validated['realized_gains'] = val
+
+    return validated, errors if errors else None
+
+
+def validate_cash_update(data):
+    """Validate cash balance update."""
+    errors = {}
+    validated = {}
+
+    val, err = validate_decimal(data.get('current_cash'), 'current_cash', min_val=0)
+    if err:
+        errors['current_cash'] = err
+    else:
+        validated['current_cash'] = val
+
+    return validated, errors if errors else None
+
+
+def validate_strategy_customization(data):
+    """Validate strategy customization update."""
+    errors = {}
+    validated = {}
+
+    if 'confidence_level' in data:
+        val, err = validate_int(data['confidence_level'], 'confidence_level',
+                               min_val=10, max_val=100, required=False)
+        if err:
+            errors['confidence_level'] = err
+        elif val is not None:
+            validated['confidence_level'] = val
+
+    if 'trade_frequency' in data:
+        val, err = validate_string(data['trade_frequency'], 'trade_frequency',
+                                   choices=['low', 'medium', 'high'], required=False)
+        if err:
+            errors['trade_frequency'] = err
+        elif val is not None:
+            validated['trade_frequency'] = val
+
+    if 'max_position_size' in data:
+        val, err = validate_int(data['max_position_size'], 'max_position_size',
+                               min_val=5, max_val=50, required=False)
+        if err:
+            errors['max_position_size'] = err
+        elif val is not None:
+            validated['max_position_size'] = val
+
+    if 'stop_loss_percent' in data:
+        val, err = validate_int(data['stop_loss_percent'], 'stop_loss_percent',
+                               min_val=5, max_val=30, required=False)
+        if err:
+            errors['stop_loss_percent'] = err
+        elif val is not None:
+            validated['stop_loss_percent'] = val
+
+    if 'take_profit_percent' in data:
+        val, err = validate_int(data['take_profit_percent'], 'take_profit_percent',
+                               min_val=10, max_val=100, required=False)
+        if err:
+            errors['take_profit_percent'] = err
+        elif val is not None:
+            validated['take_profit_percent'] = val
+
+    if 'auto_rebalance' in data:
+        val, err = validate_bool(data['auto_rebalance'], 'auto_rebalance', required=False)
+        if err:
+            errors['auto_rebalance'] = err
+        elif val is not None:
+            validated['auto_rebalance'] = val
+
+    if 'reinvest_dividends' in data:
+        val, err = validate_bool(data['reinvest_dividends'], 'reinvest_dividends', required=False)
+        if err:
+            errors['reinvest_dividends'] = err
+        elif val is not None:
+            validated['reinvest_dividends'] = val
+
+    return validated, errors if errors else None
+
+
+def validate_trade(data):
+    """Validate trade creation."""
+    errors = {}
+    validated = {}
+
+    # Required fields
+    val, err = validate_string(data.get('trade_id'), 'trade_id', min_len=1, max_len=100)
+    if err:
+        errors['trade_id'] = err
+    else:
+        validated['trade_id'] = val
+
+    val, err = validate_string(data.get('type'), 'type', choices=['buy', 'sell'])
+    if err:
+        errors['type'] = err
+    else:
+        validated['type'] = val
+
+    val, err = validate_symbol(data.get('symbol'), 'symbol')
+    if err:
+        errors['symbol'] = err
+    else:
+        validated['symbol'] = val
+
+    val, err = validate_int(data.get('quantity'), 'quantity', min_val=1)
+    if err:
+        errors['quantity'] = err
+    else:
+        validated['quantity'] = val
+
+    val, err = validate_decimal(data.get('price'), 'price', min_val=Decimal('0.0001'))
+    if err:
+        errors['price'] = err
+    else:
+        validated['price'] = val
+
+    val, err = validate_decimal(data.get('total'), 'total', min_val=Decimal('0.01'))
+    if err:
+        errors['total'] = err
+    else:
+        validated['total'] = val
+
+    # Optional fields
+    val, err = validate_datetime(data.get('timestamp'), 'timestamp', required=False)
+    if err:
+        errors['timestamp'] = err
+    else:
+        validated['timestamp'] = val if val else datetime.now(timezone.utc)
+
+    val, err = validate_string(data.get('stock_name'), 'stock_name', max_len=100, required=False)
+    if not err and val:
+        validated['stock_name'] = val
+
+    val, err = validate_string(data.get('sector'), 'sector', max_len=50, required=False)
+    if not err and val:
+        validated['sector'] = val
+
+    val, err = validate_decimal(data.get('fees'), 'fees', min_val=0, required=False)
+    if err:
+        errors['fees'] = err
+    else:
+        validated['fees'] = val if val is not None else Decimal('0')
+
+    val, err = validate_string(data.get('strategy'), 'strategy',
+                              choices=list(STRATEGIES.keys()), required=False)
+    if not err and val:
+        validated['strategy'] = val
+
+    # Look up stock info if not provided
+    symbol = validated.get('symbol')
+    if symbol and symbol in STOCK_UNIVERSE:
+        stock = STOCK_UNIVERSE[symbol]
+        if 'stock_name' not in validated:
+            validated['stock_name'] = stock.get('name')
+        if 'sector' not in validated:
+            validated['sector'] = stock.get('sector')
+
+    return validated, errors if errors else None
+
+
+def validate_holding(data):
+    """Validate holding data."""
+    errors = {}
+    validated = {}
+
+    val, err = validate_symbol(data.get('symbol'), 'symbol')
+    if err:
+        errors['symbol'] = err
+    else:
+        validated['symbol'] = val
+
+    val, err = validate_string(data.get('name'), 'name', max_len=100, required=False)
+    if not err and val:
+        validated['name'] = val
+
+    val, err = validate_string(data.get('sector'), 'sector', max_len=50, required=False)
+    if not err and val:
+        validated['sector'] = val
+
+    val, err = validate_decimal(data.get('quantity'), 'quantity', min_val=0)
+    if err:
+        errors['quantity'] = err
+    else:
+        validated['quantity'] = val
+
+    val, err = validate_decimal(data.get('avg_cost'), 'avg_cost', min_val=0)
+    if err:
+        errors['avg_cost'] = err
+    else:
+        validated['avg_cost'] = val
+
+    return validated, errors if errors else None
+
+
+def validate_holdings_list(data):
+    """Validate bulk holdings update."""
+    if not isinstance(data, dict) or 'holdings' not in data:
+        return None, {'holdings': 'holdings list is required'}
+
+    holdings_list = data['holdings']
+    if not isinstance(holdings_list, list):
+        return None, {'holdings': 'holdings must be a list'}
+
+    validated_holdings = []
+    all_errors = {}
+
+    for i, holding in enumerate(holdings_list):
+        validated, errors = validate_holding(holding)
+        if errors:
+            all_errors[f'holdings[{i}]'] = errors
+        else:
+            validated_holdings.append(validated)
+
+    if all_errors:
+        return None, all_errors
+
+    return {'holdings': validated_holdings}, None
+
+
+def validate_market_data_request(data):
+    """Validate market data request."""
+    errors = {}
+    validated = {}
+
+    if 'symbol' in data:
+        val, err = validate_symbol(data['symbol'], 'symbol', required=False)
+        if err:
+            errors['symbol'] = err
+        elif val:
+            validated['symbol'] = val
+
+    if 'symbols' in data:
+        symbols = data['symbols']
+        if not isinstance(symbols, list):
+            errors['symbols'] = 'symbols must be a list'
+        elif len(symbols) > 50:
+            errors['symbols'] = 'maximum 50 symbols per request'
+        else:
+            validated_symbols = []
+            for i, sym in enumerate(symbols):
+                val, err = validate_symbol(sym, f'symbols[{i}]')
+                if err:
+                    errors[f'symbols[{i}]'] = err
+                else:
+                    validated_symbols.append(val)
+            if not errors.get('symbols'):
+                validated['symbols'] = validated_symbols
+
+    if 'start_date' in data:
+        val, err = validate_date(data['start_date'], 'start_date', required=False)
+        if err:
+            errors['start_date'] = err
+        elif val:
+            validated['start_date'] = val
+
+    if 'end_date' in data:
+        val, err = validate_date(data['end_date'], 'end_date', required=False)
+        if err:
+            errors['end_date'] = err
+        elif val:
+            validated['end_date'] = val
+
+    if 'interval' in data:
+        val, err = validate_string(data['interval'], 'interval',
+                                   choices=['daily', 'weekly', 'monthly'], required=False)
+        if err:
+            errors['interval'] = err
+        elif val:
+            validated['interval'] = val
+    else:
+        validated['interval'] = 'daily'
+
+    return validated, errors if errors else None
+
+
+def validate_cache_refresh(data):
+    """Validate cache refresh request."""
+    errors = {}
+
+    symbols = data.get('symbols')
+    if not symbols:
+        return None, {'symbols': 'symbols list is required'}
+
+    if not isinstance(symbols, list):
+        return None, {'symbols': 'symbols must be a list'}
+
+    if len(symbols) < 1 or len(symbols) > 20:
+        return None, {'symbols': 'must provide 1-20 symbols'}
+
+    validated_symbols = []
+    for i, sym in enumerate(symbols):
+        val, err = validate_symbol(sym, f'symbols[{i}]')
+        if err:
+            errors[f'symbols[{i}]'] = err
+        else:
+            validated_symbols.append(val)
+
+    if errors:
+        return None, errors
+
+    return {'symbols': validated_symbols}, None
+
+
+def validate_auto_trade_request(data):
+    """Validate auto-trade execution request."""
+    prices = data.get('prices')
+    if not prices:
+        return None, {'prices': 'prices dictionary is required'}
+
+    if not isinstance(prices, dict):
+        return None, {'prices': 'prices must be a dictionary'}
+
+    validated_prices = {}
+    errors = {}
+
+    for symbol, price in prices.items():
+        sym_val, sym_err = validate_symbol(symbol, f'prices.{symbol}')
+        if sym_err:
+            errors[f'prices.{symbol}'] = sym_err
+            continue
+
+        price_val, price_err = validate_decimal(price, f'prices.{symbol}', min_val=0)
+        if price_err:
+            errors[f'prices.{symbol}'] = price_err
+        else:
+            validated_prices[sym_val] = price_val
+
+    if errors:
+        return None, errors
+
+    return {'prices': validated_prices}, None
+
+
+def validate_request(validator_func, data):
     """
-    Validate request data against a schema.
+    Validate request data using a validator function.
 
     Args:
-        schema_class: Marshmallow schema class
+        validator_func: Validation function to use
         data: Dictionary to validate
 
     Returns:
         Tuple of (validated_data, errors)
     """
-    schema = schema_class()
-    try:
-        result = schema.load(data)
-        return result, None
-    except ValidationError as err:
-        return None, err.messages
+    return validator_func(data)
 
 
-def get_validation_errors(errors: dict) -> list:
+def get_validation_errors(errors):
     """
-    Convert Marshmallow errors to a flat list of error messages.
+    Convert error dictionary to a flat list of error messages.
 
     Args:
-        errors: Marshmallow error dictionary
+        errors: Error dictionary
 
     Returns:
         List of error message strings
     """
+    if errors is None:
+        return []
+
     messages = []
 
     def flatten_errors(err_dict, prefix=''):

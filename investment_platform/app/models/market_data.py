@@ -5,10 +5,12 @@ Caches historical price data from Yahoo Finance to minimize API calls.
 """
 from datetime import datetime, date, timezone
 from decimal import Decimal
-from app import db
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, Date, BigInteger, UniqueConstraint, Index
+
+from app.database import Base, get_scoped_session
 
 
-class MarketDataCache(db.Model):
+class MarketDataCache(Base):
     """
     Caches OHLCV (Open, High, Low, Close, Volume) price data.
 
@@ -26,21 +28,21 @@ class MarketDataCache(db.Model):
     """
     __tablename__ = 'market_data_cache'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    symbol = db.Column(db.String(10), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False, index=True)
-    open = db.Column(db.Numeric(15, 4), nullable=True)
-    high = db.Column(db.Numeric(15, 4), nullable=True)
-    low = db.Column(db.Numeric(15, 4), nullable=True)
-    close = db.Column(db.Numeric(15, 4), nullable=False)
-    adj_close = db.Column(db.Numeric(15, 4), nullable=False)
-    volume = db.Column(db.BigInteger, nullable=True)
-    fetched_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(10), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    open = Column(Numeric(15, 4), nullable=True)
+    high = Column(Numeric(15, 4), nullable=True)
+    low = Column(Numeric(15, 4), nullable=True)
+    close = Column(Numeric(15, 4), nullable=False)
+    adj_close = Column(Numeric(15, 4), nullable=False)
+    volume = Column(BigInteger, nullable=True)
+    fetched_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     # Unique constraint on symbol + date
     __table_args__ = (
-        db.UniqueConstraint('symbol', 'date', name='uix_market_data_symbol_date'),
-        db.Index('ix_market_data_symbol_date', 'symbol', 'date'),
+        UniqueConstraint('symbol', 'date', name='uix_market_data_symbol_date'),
+        Index('ix_market_data_symbol_date', 'symbol', 'date'),
     )
 
     def __repr__(self):
@@ -73,7 +75,8 @@ class MarketDataCache(db.Model):
         Returns:
             List of MarketDataCache instances ordered by date
         """
-        return cls.query.filter(
+        session = get_scoped_session()
+        return session.query(cls).filter(
             cls.symbol == symbol,
             cls.date >= start_date,
             cls.date <= end_date
@@ -90,7 +93,8 @@ class MarketDataCache(db.Model):
         Returns:
             MarketDataCache instance or None
         """
-        return cls.query.filter_by(symbol=symbol)\
+        session = get_scoped_session()
+        return session.query(cls).filter_by(symbol=symbol)\
             .order_by(cls.date.desc())\
             .first()
 
@@ -105,7 +109,8 @@ class MarketDataCache(db.Model):
         Returns:
             Set of date objects
         """
-        results = db.session.query(cls.date)\
+        session = get_scoped_session()
+        results = session.query(cls.date)\
             .filter_by(symbol=symbol)\
             .all()
         return {r[0] for r in results}
@@ -118,9 +123,10 @@ class MarketDataCache(db.Model):
         Args:
             records: List of dicts with symbol, date, open, high, low, close, adj_close, volume
         """
+        session = get_scoped_session()
         for record in records:
             # Check if record exists
-            existing = cls.query.filter_by(
+            existing = session.query(cls).filter_by(
                 symbol=record['symbol'],
                 date=record['date']
             ).first()
@@ -147,14 +153,16 @@ class MarketDataCache(db.Model):
                     volume=record.get('volume'),
                     fetched_at=datetime.now(timezone.utc)
                 )
-                db.session.add(new_record)
+                session.add(new_record)
 
     @classmethod
     def delete_symbol_cache(cls, symbol):
         """Delete all cached data for a symbol."""
-        return cls.query.filter_by(symbol=symbol).delete()
+        session = get_scoped_session()
+        return session.query(cls).filter_by(symbol=symbol).delete()
 
     @classmethod
     def delete_all_cache(cls):
         """Delete all cached market data."""
-        return cls.query.delete()
+        session = get_scoped_session()
+        return session.query(cls).delete()

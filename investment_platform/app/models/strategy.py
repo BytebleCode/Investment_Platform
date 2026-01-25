@@ -4,10 +4,12 @@ Strategy Customization Model
 Stores user-specific customizations for each investment strategy.
 """
 from datetime import datetime, timezone
-from app import db
+from sqlalchemy import Column, Integer, String, SmallInteger, DateTime, UniqueConstraint
+
+from app.database import Base, get_scoped_session
 
 
-class StrategyCustomization(db.Model):
+class StrategyCustomization(Base):
     """
     Represents user customizations for an investment strategy.
 
@@ -27,22 +29,22 @@ class StrategyCustomization(db.Model):
     """
     __tablename__ = 'strategy_customizations'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.String(50), nullable=False, default='default')
-    strategy_id = db.Column(db.String(50), nullable=False)
-    confidence_level = db.Column(db.Integer, nullable=False, default=50)
-    trade_frequency = db.Column(db.String(20), nullable=False, default='medium')
-    max_position_size = db.Column(db.Integer, nullable=False, default=15)
-    stop_loss_percent = db.Column(db.Integer, nullable=False, default=10)
-    take_profit_percent = db.Column(db.Integer, nullable=False, default=20)
-    auto_rebalance = db.Column(db.SmallInteger, nullable=False, default=1)
-    reinvest_dividends = db.Column(db.SmallInteger, nullable=False, default=1)
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), nullable=False, default='default')
+    strategy_id = Column(String(50), nullable=False)
+    confidence_level = Column(Integer, nullable=False, default=50)
+    trade_frequency = Column(String(20), nullable=False, default='medium')
+    max_position_size = Column(Integer, nullable=False, default=15)
+    stop_loss_percent = Column(Integer, nullable=False, default=10)
+    take_profit_percent = Column(Integer, nullable=False, default=20)
+    auto_rebalance = Column(SmallInteger, nullable=False, default=1)
+    reinvest_dividends = Column(SmallInteger, nullable=False, default=1)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Unique constraint on user_id + strategy_id
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'strategy_id', name='uix_strategy_user_strategy'),
+        UniqueConstraint('user_id', 'strategy_id', name='uix_strategy_user_strategy'),
     )
 
     # Validation constants
@@ -106,12 +108,14 @@ class StrategyCustomization(db.Model):
     @classmethod
     def get_user_customizations(cls, user_id='default'):
         """Get all strategy customizations for a user."""
-        return cls.query.filter_by(user_id=user_id).all()
+        session = get_scoped_session()
+        return session.query(cls).filter_by(user_id=user_id).all()
 
     @classmethod
     def get_customization(cls, user_id, strategy_id):
         """Get customization for a specific user and strategy."""
-        return cls.query.filter_by(user_id=user_id, strategy_id=strategy_id).first()
+        session = get_scoped_session()
+        return session.query(cls).filter_by(user_id=user_id, strategy_id=strategy_id).first()
 
     @classmethod
     def upsert(cls, user_id, strategy_id, **kwargs):
@@ -126,6 +130,7 @@ class StrategyCustomization(db.Model):
         Returns:
             StrategyCustomization instance
         """
+        session = get_scoped_session()
         customization = cls.get_customization(user_id, strategy_id)
 
         if customization:
@@ -137,7 +142,7 @@ class StrategyCustomization(db.Model):
         else:
             # Create new
             customization = cls(user_id=user_id, strategy_id=strategy_id, **kwargs)
-            db.session.add(customization)
+            session.add(customization)
 
         customization.validate()
         return customization

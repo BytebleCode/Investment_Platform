@@ -16,7 +16,8 @@ from unittest.mock import MagicMock, patch
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import create_app, db
+from app import create_app
+from app.database import get_scoped_session, create_all, drop_all
 from app.config import TestingConfig
 from app.models import (
     PortfolioState, Holdings, TradesHistory,
@@ -30,9 +31,9 @@ def app():
     application = create_app(TestingConfig)
 
     with application.app_context():
-        db.create_all()
+        create_all()
         yield application
-        db.drop_all()
+        drop_all()
 
 
 @pytest.fixture(scope='function')
@@ -45,19 +46,20 @@ def client(app):
 def db_session(app):
     """Create database session with automatic cleanup."""
     with app.app_context():
+        session = get_scoped_session()
         # Clear all tables before each test
-        db.session.query(TradesHistory).delete()
-        db.session.query(Holdings).delete()
-        db.session.query(StrategyCustomization).delete()
-        db.session.query(MarketDataCache).delete()
-        db.session.query(MarketDataMetadata).delete()
-        db.session.query(PortfolioState).delete()
-        db.session.commit()
+        session.query(TradesHistory).delete()
+        session.query(Holdings).delete()
+        session.query(StrategyCustomization).delete()
+        session.query(MarketDataCache).delete()
+        session.query(MarketDataMetadata).delete()
+        session.query(PortfolioState).delete()
+        session.commit()
 
-        yield db.session
+        yield session
 
         # Cleanup after test
-        db.session.rollback()
+        session.rollback()
 
 
 @pytest.fixture
@@ -226,14 +228,17 @@ def sample_market_data(db_session):
 
 @pytest.fixture
 def mock_yahoo_finance():
-    """Mock Yahoo Finance API responses."""
+    """Mock Yahoo Finance API responses via pandas_datareader."""
     import pandas as pd
     import numpy as np
 
-    def create_mock_data(symbol, start_date, end_date):
+    def create_mock_data(symbol, data_source, start_date, end_date):
         """Generate mock OHLCV data."""
         dates = pd.date_range(start=start_date, end=end_date, freq='B')
         n = len(dates)
+
+        if n == 0:
+            return pd.DataFrame()
 
         base_price = 150.0
         prices = base_price + np.cumsum(np.random.randn(n) * 2)
@@ -247,9 +252,9 @@ def mock_yahoo_finance():
             'Volume': np.random.randint(1000000, 5000000, n)
         }, index=dates)
 
-    with patch('yfinance.download') as mock_download:
-        mock_download.side_effect = create_mock_data
-        yield mock_download
+    with patch('pandas_datareader.DataReader') as mock_datareader:
+        mock_datareader.side_effect = create_mock_data
+        yield mock_datareader
 
 
 @pytest.fixture

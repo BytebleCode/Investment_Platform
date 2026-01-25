@@ -3,9 +3,18 @@ Investment Platform - Flask Application Factory
 """
 from flask import Flask
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+from app.database import init_db, create_all, close_session, get_scoped_session
+
+# For backward compatibility - db.session can still be used
+class DBCompat:
+    """Compatibility layer for db.session usage."""
+
+    @property
+    def session(self):
+        return get_scoped_session()
+
+db = DBCompat()
 
 
 def create_app(config_class=None):
@@ -26,8 +35,10 @@ def create_app(config_class=None):
         config_class = Config
     app.config.from_object(config_class)
 
-    # Initialize extensions
-    db.init_app(app)
+    # Initialize database
+    init_db(app)
+
+    # Initialize CORS
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # Register blueprints
@@ -48,8 +59,12 @@ def create_app(config_class=None):
     app.register_blueprint(health_bp, url_prefix='/api')
 
     # Create database tables
-    with app.app_context():
-        db.create_all()
+    create_all()
+
+    # Teardown - close session after each request
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        close_session()
 
     # Register error handlers
     register_error_handlers(app)

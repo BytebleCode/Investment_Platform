@@ -6,10 +6,12 @@ current strategy, and realized gains.
 """
 from datetime import datetime, timezone
 from decimal import Decimal
-from app import db
+from sqlalchemy import Column, Integer, String, Numeric, SmallInteger, DateTime
+
+from app.database import Base, get_scoped_session
 
 
-class PortfolioState(db.Model):
+class PortfolioState(Base):
     """
     Represents the current state of a user's investment portfolio.
 
@@ -26,15 +28,15 @@ class PortfolioState(db.Model):
     """
     __tablename__ = 'portfolio_state'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.String(50), unique=True, nullable=False, default='default')
-    initial_value = db.Column(db.Numeric(15, 2), nullable=False, default=Decimal('100000.00'))
-    current_cash = db.Column(db.Numeric(15, 2), nullable=False, default=Decimal('100000.00'))
-    current_strategy = db.Column(db.String(50), nullable=False, default='balanced')
-    is_initialized = db.Column(db.SmallInteger, nullable=False, default=0)
-    realized_gains = db.Column(db.Numeric(15, 2), nullable=False, default=Decimal('0.00'))
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), unique=True, nullable=False, default='default')
+    initial_value = Column(Numeric(15, 2), nullable=False, default=Decimal('100000.00'))
+    current_cash = Column(Numeric(15, 2), nullable=False, default=Decimal('100000.00'))
+    current_strategy = Column(String(50), nullable=False, default='balanced')
+    is_initialized = Column(SmallInteger, nullable=False, default=0)
+    realized_gains = Column(Numeric(15, 2), nullable=False, default=Decimal('0.00'))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f'<PortfolioState {self.user_id}: ${self.current_cash}>'
@@ -64,11 +66,12 @@ class PortfolioState(db.Model):
         Returns:
             PortfolioState instance
         """
-        portfolio = cls.query.filter_by(user_id=user_id).first()
+        session = get_scoped_session()
+        portfolio = session.query(cls).filter_by(user_id=user_id).first()
         if not portfolio:
             portfolio = cls(user_id=user_id)
-            db.session.add(portfolio)
-            db.session.commit()
+            session.add(portfolio)
+            session.commit()
         return portfolio
 
     def reset(self):

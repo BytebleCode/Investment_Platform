@@ -5,10 +5,12 @@ Tracks current stock positions including quantity and average cost basis.
 """
 from datetime import datetime, timezone
 from decimal import Decimal
-from app import db
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, UniqueConstraint
+
+from app.database import Base, get_scoped_session
 
 
-class Holdings(db.Model):
+class Holdings(Base):
     """
     Represents a stock holding in a user's portfolio.
 
@@ -25,19 +27,19 @@ class Holdings(db.Model):
     """
     __tablename__ = 'holdings'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.String(50), nullable=False, default='default')
-    symbol = db.Column(db.String(10), nullable=False)
-    name = db.Column(db.String(100), nullable=True)
-    sector = db.Column(db.String(50), nullable=True)
-    quantity = db.Column(db.Numeric(15, 4), nullable=False)
-    avg_cost = db.Column(db.Numeric(15, 4), nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), nullable=False, default='default')
+    symbol = Column(String(10), nullable=False)
+    name = Column(String(100), nullable=True)
+    sector = Column(String(50), nullable=True)
+    quantity = Column(Numeric(15, 4), nullable=False)
+    avg_cost = Column(Numeric(15, 4), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Unique constraint on user_id + symbol
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'symbol', name='uix_holdings_user_symbol'),
+        UniqueConstraint('user_id', 'symbol', name='uix_holdings_user_symbol'),
     )
 
     def __repr__(self):
@@ -102,14 +104,17 @@ class Holdings(db.Model):
     @classmethod
     def get_user_holdings(cls, user_id='default'):
         """Get all holdings for a user, ordered by symbol."""
-        return cls.query.filter_by(user_id=user_id).order_by(cls.symbol).all()
+        session = get_scoped_session()
+        return session.query(cls).filter_by(user_id=user_id).order_by(cls.symbol).all()
 
     @classmethod
     def get_holding(cls, user_id, symbol):
         """Get a specific holding by user and symbol."""
-        return cls.query.filter_by(user_id=user_id, symbol=symbol).first()
+        session = get_scoped_session()
+        return session.query(cls).filter_by(user_id=user_id, symbol=symbol).first()
 
     @classmethod
     def delete_user_holdings(cls, user_id='default'):
         """Delete all holdings for a user (used in portfolio reset)."""
-        cls.query.filter_by(user_id=user_id).delete()
+        session = get_scoped_session()
+        session.query(cls).filter_by(user_id=user_id).delete()

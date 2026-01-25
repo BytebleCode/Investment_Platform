@@ -38,10 +38,17 @@ from decimal import Decimal
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import create_app, db
+from app import create_app
+from app.database import get_scoped_session
 from app.config import get_config
 from app.models import MarketDataCache, MarketDataMetadata
 from app.data.stock_universe import STOCK_UNIVERSE
+
+try:
+    import pandas_datareader as pdr
+    PANDAS_DATAREADER_AVAILABLE = True
+except ImportError:
+    PANDAS_DATAREADER_AVAILABLE = False
 
 
 class YahooDataFetcher:
@@ -71,16 +78,13 @@ class YahooDataFetcher:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            import yfinance as yf
-        except ImportError:
-            print("ERROR: yfinance not installed. Run: pip install yfinance")
+        if not PANDAS_DATAREADER_AVAILABLE:
+            print("ERROR: pandas_datareader not installed. Run: pip install pandas-datareader")
             return False
 
         try:
-            # Fetch from Yahoo Finance
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(start=start_date, end=end_date)
+            # Fetch from Yahoo Finance via pandas_datareader
+            hist = pdr.DataReader(symbol, 'yahoo', start_date, end_date)
 
             if hist.empty:
                 print(f"  No data returned for {symbol}")
@@ -90,12 +94,13 @@ class YahooDataFetcher:
             records_skipped = 0
 
             with self.app.app_context():
+                session = get_scoped_session()
                 for idx, row in hist.iterrows():
                     trade_date = idx.date()
 
                     # Check if exists
                     if not refresh:
-                        existing = MarketDataCache.query.filter_by(
+                        existing = session.query(MarketDataCache).filter_by(
                             symbol=symbol,
                             date=trade_date
                         ).first()
@@ -105,7 +110,7 @@ class YahooDataFetcher:
                             continue
                     else:
                         # Delete existing for refresh
-                        MarketDataCache.query.filter_by(
+                        session.query(MarketDataCache).filter_by(
                             symbol=symbol,
                             date=trade_date
                         ).delete()
@@ -118,17 +123,17 @@ class YahooDataFetcher:
                         high=Decimal(str(row['High'])),
                         low=Decimal(str(row['Low'])),
                         close=Decimal(str(row['Close'])),
-                        adj_close=Decimal(str(row['Close'])),
+                        adj_close=Decimal(str(row['Adj Close'])),
                         volume=int(row['Volume']),
                         fetched_at=datetime.now()
                     )
-                    db.session.add(cache_entry)
+                    session.add(cache_entry)
                     records_added += 1
 
                 # Update metadata
                 self._update_metadata(symbol, hist)
 
-                db.session.commit()
+                session.commit()
 
             self.stats['records_added'] += records_added
             self.stats['records_skipped'] += records_skipped
@@ -139,18 +144,20 @@ class YahooDataFetcher:
         except Exception as e:
             print(f"  {symbol}: ERROR - {e}")
             with self.app.app_context():
-                db.session.rollback()
+                session = get_scoped_session()
+                session.rollback()
             return False
 
     def _update_metadata(self, symbol: str, hist):
         """Update market data metadata after fetch."""
-        metadata = MarketDataMetadata.query.filter_by(symbol=symbol).first()
+        session = get_scoped_session()
+        metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol).first()
 
-        total_records = MarketDataCache.query.filter_by(symbol=symbol).count()
-        earliest = MarketDataCache.query.filter_by(symbol=symbol).order_by(
+        total_records = session.query(MarketDataCache).filter_by(symbol=symbol).count()
+        earliest = session.query(MarketDataCache).filter_by(symbol=symbol).order_by(
             MarketDataCache.date.asc()
         ).first()
-        latest = MarketDataCache.query.filter_by(symbol=symbol).order_by(
+        latest = session.query(MarketDataCache).filter_by(symbol=symbol).order_by(
             MarketDataCache.date.desc()
         ).first()
 
@@ -172,7 +179,7 @@ class YahooDataFetcher:
                 total_records=total_records,
                 fetch_status='complete'
             )
-            db.session.add(metadata)
+            session.add(metadata)
 
     def fetch_batch(self, symbols: list, start_date: date, end_date: date,
                     refresh: bool = False, delay: float = 2.0):
@@ -210,8 +217,9 @@ class YahooDataFetcher:
         all_symbols = set(STOCK_UNIVERSE.keys())
 
         with self.app.app_context():
+            session = get_scoped_session()
             cached_symbols = set(
-                m.symbol for m in MarketDataMetadata.query.all()
+                m.symbol for m in session.query(MarketDataMetadata).all()
                 if m.total_records and m.total_records > 0
             )
 
@@ -222,7 +230,8 @@ class YahooDataFetcher:
         cutoff_date = date.today() - timedelta(days=max_age_days)
 
         with self.app.app_context():
-            stale = MarketDataMetadata.query.filter(
+            session = get_scoped_session()
+            stale = session.query(MarketDataMetadata).filter(
                 MarketDataMetadata.last_fetch_date < cutoff_date
             ).all()
             return [m.symbol for m in stale]
@@ -304,14 +313,15 @@ def main():
         print("=" * 60)
 
         with app.app_context():
-            total_records = MarketDataCache.query.count()
-            total_symbols = MarketDataMetadata.query.count()
+            session = get_scoped_session()
+            total_records = session.query(MarketDataCache).count()
+            total_symbols = session.query(MarketDataMetadata).count()
 
             print(f"\nTotal Records: {total_records:,}")
             print(f"Total Symbols: {total_symbols}")
 
             print("\nSymbol Details:")
-            for meta in MarketDataMetadata.query.order_by(MarketDataMetadata.symbol).all():
+            for meta in session.query(MarketDataMetadata).order_by(MarketDataMetadata.symbol).all():
                 print(f"  {meta.symbol}: {meta.total_records or 0} records "
                       f"({meta.earliest_date} to {meta.latest_date}) "
                       f"[last fetch: {meta.last_fetch_date}]")

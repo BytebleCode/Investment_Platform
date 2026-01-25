@@ -19,15 +19,9 @@ try:
 except ImportError:
     PANDAS_DATAREADER_AVAILABLE = False
 
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError:
-    YFINANCE_AVAILABLE = False
-
 import pytz
 
-from app import db
+from app.database import get_scoped_session
 from app.models import MarketDataCache, MarketDataMetadata
 from app.data import get_stock_info, get_stock_beta
 
@@ -158,45 +152,27 @@ class MarketDataService:
         self.rate_limiter.wait_if_needed()
 
         try:
-            # Try yfinance first (more reliable)
-            if YFINANCE_AVAILABLE:
-                ticker = yf.Ticker(symbol)
-                df = ticker.history(start=start_date, end=end_date + timedelta(days=1))
-
-                if df.empty:
-                    logger.warning(f"No data returned from yfinance for {symbol}")
-                    return None
-
-                # Rename columns to match our schema
-                df = df.rename(columns={
-                    'Open': 'open',
-                    'High': 'high',
-                    'Low': 'low',
-                    'Close': 'close',
-                    'Volume': 'volume'
-                })
-                df['adj_close'] = df['close']  # yfinance returns adjusted by default
-                df.index = df.index.date  # Convert to date
-                df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
-
-            # Fallback to pandas_datareader
-            elif PANDAS_DATAREADER_AVAILABLE:
-                df = pdr.DataReader(symbol, 'yahoo', start_date, end_date)
-
-                # Rename columns
-                df = df.rename(columns={
-                    'Open': 'open',
-                    'High': 'high',
-                    'Low': 'low',
-                    'Close': 'close',
-                    'Adj Close': 'adj_close',
-                    'Volume': 'volume'
-                })
-                df.index = df.index.date
-
-            else:
-                logger.error("No data fetching library available (yfinance or pandas_datareader)")
+            if not PANDAS_DATAREADER_AVAILABLE:
+                logger.error("pandas_datareader not available")
                 return None
+
+            df = pdr.DataReader(symbol, 'yahoo', start_date, end_date)
+
+            if df.empty:
+                logger.warning(f"No data returned from pandas_datareader for {symbol}")
+                return None
+
+            # Rename columns to match our schema
+            df = df.rename(columns={
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Adj Close': 'adj_close',
+                'Volume': 'volume'
+            })
+            df.index = df.index.date  # Convert to date
+            df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
 
             self.rate_limiter.handle_success()
             logger.info(f"Fetched {len(df)} records for {symbol} from Yahoo Finance")
@@ -238,7 +214,8 @@ class MarketDataService:
             })
 
         MarketDataCache.bulk_insert(records)
-        db.session.commit()
+        session = get_scoped_session()
+        session.commit()
 
         # Update metadata
         self._update_metadata(symbol)
@@ -251,7 +228,8 @@ class MarketDataService:
 
         # Get date range from cache
         from sqlalchemy import func
-        result = db.session.query(
+        session = get_scoped_session()
+        result = session.query(
             func.min(MarketDataCache.date),
             func.max(MarketDataCache.date),
             func.count(MarketDataCache.id)
@@ -263,7 +241,7 @@ class MarketDataService:
                 latest=result[1],
                 total_records=result[2]
             )
-            db.session.commit()
+            session.commit()
 
     def _get_cached_data(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """
@@ -310,7 +288,8 @@ class MarketDataService:
         Returns:
             List of (start, end) tuples for missing ranges
         """
-        metadata = MarketDataMetadata.query.filter_by(symbol=symbol).first()
+        session = get_scoped_session()
+        metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol).first()
 
         if not metadata or not metadata.earliest_date:
             # No data cached, need entire range
@@ -479,7 +458,8 @@ class MarketDataService:
 
     def get_cache_status(self, symbol: str) -> dict:
         """Get cache status for a symbol."""
-        metadata = MarketDataMetadata.query.filter_by(symbol=symbol.upper()).first()
+        session = get_scoped_session()
+        metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol.upper()).first()
 
         if not metadata:
             return {
@@ -500,15 +480,16 @@ class MarketDataService:
         Returns:
             Number of records deleted
         """
+        session = get_scoped_session()
         if symbol:
             symbol = symbol.upper()
             deleted = MarketDataCache.delete_symbol_cache(symbol)
             MarketDataMetadata.delete_metadata(symbol)
         else:
             deleted = MarketDataCache.delete_all_cache()
-            MarketDataMetadata.query.delete()
+            session.query(MarketDataMetadata).delete()
 
-        db.session.commit()
+        session.commit()
         return deleted
 
     def refresh_cache(self, symbol: str) -> bool:
