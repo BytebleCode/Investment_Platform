@@ -3,6 +3,8 @@ Development Entry Point
 
 Run this script to start the Flask development server with Dash dashboard.
 Usage: python run.py
+
+Set DISABLE_DASHBOARD=1 to run API-only mode.
 """
 import os
 import sys
@@ -12,19 +14,33 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 from app.config import DevelopmentConfig
-from dashboard import create_dash_app
 
 # Create Flask app
 flask_app = create_app(DevelopmentConfig)
 
-# Create Dash app integrated with Flask
-dash_app = create_dash_app(flask_app)
+# Try to create Dash app (optional - may not be available on all platforms)
+dash_app = None
+dashboard_enabled = not os.environ.get('DISABLE_DASHBOARD', '').lower() in ('1', 'true', 'yes')
+
+if dashboard_enabled:
+    try:
+        from dashboard import create_dash_app
+        dash_app = create_dash_app(flask_app)
+    except ImportError as e:
+        print(f"Warning: Dashboard not available ({e})")
+        print("Running in API-only mode.")
+        dashboard_enabled = False
+    except Exception as e:
+        print(f"Warning: Dashboard failed to initialize ({e})")
+        print("Running in API-only mode.")
+        dashboard_enabled = False
 
 if __name__ == '__main__':
     # Get port from environment or default to 5000
     port = int(os.environ.get('PORT', 5000))
 
-    print(f"""
+    if dashboard_enabled:
+        print(f"""
     +==============================================================+
     |           Investment Platform - Development Server           |
     +==============================================================+
@@ -34,7 +50,19 @@ if __name__ == '__main__':
     |                                                              |
     |  Press Ctrl+C to stop                                        |
     +==============================================================+
-    """)
+        """)
+    else:
+        print(f"""
+    +==============================================================+
+    |       Investment Platform - API Server (No Dashboard)        |
+    +==============================================================+
+    |  API Server:  http://localhost:{port}/api                      |
+    |  Health:      http://localhost:{port}/api/health               |
+    |                                                              |
+    |  Dashboard disabled or unavailable                           |
+    |  Press Ctrl+C to stop                                        |
+    +==============================================================+
+        """)
 
     flask_app.run(
         host='0.0.0.0',
