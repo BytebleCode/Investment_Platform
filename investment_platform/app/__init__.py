@@ -34,7 +34,8 @@ def create_app(config_class=None):
     if config_class is None:
         from app.config import Config
         config_class = Config
-    app.config.from_object(config_class)
+    # Instantiate config class so that @property decorators work
+    app.config.from_object(config_class())
 
     # Initialize database
     init_db(app)
