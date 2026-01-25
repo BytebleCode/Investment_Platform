@@ -1,13 +1,15 @@
 """
 Market Data Service
 
-Fetches real market data from Yahoo Finance via yfinance.
-Implements intelligent caching to minimize API calls and avoid rate limits.
+Fetches real market data from local CSV files or Yahoo Finance.
+Prioritizes local CSV files in data/tickercsv folder for faster access.
 """
 import logging
+import os
 import time
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -27,12 +29,12 @@ from app.data import get_stock_info, get_stock_beta
 
 logger = logging.getLogger(__name__)
 
+# Path to local ticker CSV files
+TICKER_CSV_DIR = Path(__file__).parent.parent.parent / 'data' / 'tickercsv'
+
 
 class RateLimiter:
-    """
-    Rate limiter to prevent hitting Yahoo Finance API limits.
-    Implements exponential backoff on errors.
-    """
+    """Rate limiter to prevent hitting Yahoo Finance API limits."""
 
     def __init__(self, max_per_second: float = 2.0, min_delay: float = 0.5):
         self.max_per_second = max_per_second
@@ -41,28 +43,18 @@ class RateLimiter:
         self.consecutive_errors = 0
 
     def wait_if_needed(self):
-        """Block until rate limit allows next request."""
         elapsed = time.time() - self.last_request_time
         required_delay = max(1.0 / self.max_per_second, self.min_delay)
-
         if elapsed < required_delay:
             time.sleep(required_delay - elapsed)
-
         self.last_request_time = time.time()
 
     def handle_success(self):
-        """Reset error counter on success."""
         self.consecutive_errors = 0
 
     def handle_error(self) -> float:
-        """
-        Handle an error with exponential backoff.
-
-        Returns:
-            Backoff delay in seconds
-        """
         self.consecutive_errors += 1
-        delay = min(2 ** self.consecutive_errors, 60)  # Max 60 seconds
+        delay = min(2 ** self.consecutive_errors, 60)
         logger.warning(f"Rate limit backoff: {delay}s (error #{self.consecutive_errors})")
         time.sleep(delay)
         return delay
@@ -70,85 +62,128 @@ class RateLimiter:
 
 class MarketDataService:
     """
-    Fetches real market data from Yahoo Finance with DB2 caching.
+    Fetches real market data with local CSV and Yahoo Finance support.
 
-    Caching Strategy:
-    - On first request: fetch full history (configurable years)
-    - On subsequent requests: only fetch missing dates
-    - Intraday: cache for configured duration during market hours
-    - After hours: use last close price
+    Priority:
+    1. Local CSV files in data/tickercsv folder
+    2. Cached data in database/CSV storage
+    3. Yahoo Finance API (if available)
     """
 
     def __init__(self, cache_hours: int = 24, history_years: int = 5):
-        """
-        Initialize the market data service.
-
-        Args:
-            cache_hours: Hours to cache intraday data
-            history_years: Years of history to fetch on first request
-        """
         self.cache_hours = cache_hours
         self.history_years = history_years
         self.rate_limiter = RateLimiter()
         self.eastern_tz = pytz.timezone('US/Eastern')
+        self._local_csv_cache = {}  # Cache loaded CSV data in memory
 
     def is_market_open(self) -> bool:
-        """
-        Check if NYSE is currently open.
-
-        Market hours: 9:30 AM - 4:00 PM ET, weekdays
-        """
+        """Check if NYSE is currently open."""
         now_et = datetime.now(self.eastern_tz)
-
-        # Check weekday (Monday=0, Sunday=6)
         if now_et.weekday() >= 5:
             return False
-
-        # Check time
         market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
-
         return market_open <= now_et <= market_close
 
     def get_last_trading_day(self) -> date:
-        """
-        Get the most recent trading day (skip weekends).
-
-        Returns:
-            Date of last trading day
-        """
+        """Get the most recent trading day (skip weekends)."""
         today = date.today()
-
-        # If weekend, go back to Friday
-        if today.weekday() == 5:  # Saturday
+        if today.weekday() == 5:
             return today - timedelta(days=1)
-        elif today.weekday() == 6:  # Sunday
+        elif today.weekday() == 6:
             return today - timedelta(days=2)
 
-        # If before market open on weekday, use previous day
         now_et = datetime.now(self.eastern_tz)
         if now_et.weekday() < 5 and now_et.hour < 9:
             prev_day = today - timedelta(days=1)
-            if prev_day.weekday() == 6:  # Sunday
+            if prev_day.weekday() == 6:
                 return prev_day - timedelta(days=2)
-            elif prev_day.weekday() == 5:  # Saturday
+            elif prev_day.weekday() == 5:
                 return prev_day - timedelta(days=1)
             return prev_day
 
         return today
 
-    def _fetch_from_yahoo(self, symbol: str, start_date: date, end_date: date) -> Optional[pd.DataFrame]:
+    def _get_csv_filename(self, symbol: str) -> Optional[Path]:
+        """Get the CSV file path for a symbol."""
+        # Try different filename patterns
+        symbol_clean = symbol.upper().replace('-', '').replace('^', '_')
+
+        patterns = [
+            f"{symbol.upper()}.csv",
+            f"{symbol_clean}.csv",
+            f"{symbol.upper().replace('-USD', '')}.csv",  # For crypto like BTC-USD -> BTC
+            f"_{symbol.upper().replace('^', '')}.csv",  # For indices like ^GSPC -> _GSPC
+        ]
+
+        for pattern in patterns:
+            filepath = TICKER_CSV_DIR / pattern
+            if filepath.exists():
+                return filepath
+
+        return None
+
+    def _load_from_local_csv(self, symbol: str) -> Optional[pd.DataFrame]:
         """
-        Fetch data from Yahoo Finance using yfinance.
+        Load data from local CSV file.
 
         Args:
             symbol: Stock ticker symbol
-            start_date: Start date
-            end_date: End date
 
         Returns:
-            DataFrame with OHLCV data or None on error
+            DataFrame with OHLCV data or None if file doesn't exist
         """
+        # Check memory cache first
+        symbol_upper = symbol.upper()
+        if symbol_upper in self._local_csv_cache:
+            logger.debug(f"Using memory-cached data for {symbol_upper}")
+            return self._local_csv_cache[symbol_upper].copy()
+
+        filepath = self._get_csv_filename(symbol)
+        if not filepath:
+            return None
+
+        try:
+            df = pd.read_csv(filepath)
+
+            # Standardize column names
+            df.columns = df.columns.str.lower()
+
+            # Parse date column
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date']).dt.date
+                df.set_index('date', inplace=True)
+
+            # Ensure required columns exist
+            required_cols = ['open', 'high', 'low', 'close', 'volume']
+            for col in required_cols:
+                if col not in df.columns:
+                    logger.warning(f"Missing column {col} in {filepath}")
+                    return None
+
+            # Add adj_close if not present (use close)
+            if 'adj_close' not in df.columns:
+                df['adj_close'] = df['close']
+
+            # Select only needed columns
+            df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
+
+            # Sort by date
+            df.sort_index(inplace=True)
+
+            # Cache in memory
+            self._local_csv_cache[symbol_upper] = df.copy()
+
+            logger.info(f"Loaded {len(df)} records for {symbol} from local CSV: {filepath.name}")
+            return df
+
+        except Exception as e:
+            logger.error(f"Error loading CSV for {symbol}: {e}")
+            return None
+
+    def _fetch_from_yahoo(self, symbol: str, start_date: date, end_date: date) -> Optional[pd.DataFrame]:
+        """Fetch data from Yahoo Finance using yfinance."""
         self.rate_limiter.wait_if_needed()
 
         try:
@@ -156,10 +191,7 @@ class MarketDataService:
                 logger.error("yfinance not available")
                 return None
 
-            # Create ticker object
             ticker = yf.Ticker(symbol)
-
-            # Fetch historical data (end_date needs +1 day for yfinance)
             end_date_adj = end_date + timedelta(days=1)
             df = ticker.history(start=start_date, end=end_date_adj)
 
@@ -167,7 +199,6 @@ class MarketDataService:
                 logger.warning(f"No data returned from yfinance for {symbol}")
                 return None
 
-            # Rename columns to match our schema
             df = df.rename(columns={
                 'Open': 'open',
                 'High': 'high',
@@ -176,14 +207,10 @@ class MarketDataService:
                 'Volume': 'volume'
             })
 
-            # yfinance doesn't have Adj Close in history(), use Close as adj_close
             if 'adj_close' not in df.columns:
                 df['adj_close'] = df['close']
 
-            # Convert index to date
             df.index = df.index.date
-
-            # Select only needed columns
             df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
 
             self.rate_limiter.handle_success()
@@ -196,24 +223,13 @@ class MarketDataService:
             return None
 
     def _save_to_cache(self, symbol: str, df: pd.DataFrame) -> int:
-        """
-        Save DataFrame to DB2 cache.
-
-        Args:
-            symbol: Stock ticker symbol
-            df: DataFrame with OHLCV data
-
-        Returns:
-            Number of records saved
-        """
+        """Save DataFrame to cache."""
         if df is None or df.empty:
             return 0
 
         records = []
         for idx, row in df.iterrows():
-            # idx is the date
             record_date = idx if isinstance(idx, date) else idx.date()
-
             records.append({
                 'symbol': symbol,
                 'date': record_date,
@@ -228,10 +244,7 @@ class MarketDataService:
         MarketDataCache.bulk_insert(records)
         session = get_scoped_session()
         session.commit()
-
-        # Update metadata
         self._update_metadata(symbol)
-
         return len(records)
 
     def _update_metadata(self, symbol: str):
@@ -252,8 +265,6 @@ class MarketDataService:
             return
 
         metadata = MarketDataMetadata.get_or_create(symbol)
-
-        # Get date range from cache
         from sqlalchemy import func
         session = get_scoped_session()
         result = session.query(
@@ -271,17 +282,7 @@ class MarketDataService:
             session.commit()
 
     def _get_cached_data(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
-        """
-        Get data from cache as DataFrame.
-
-        Args:
-            symbol: Stock ticker symbol
-            start_date: Start date
-            end_date: End date
-
-        Returns:
-            DataFrame with cached data
-        """
+        """Get data from cache as DataFrame."""
         records = MarketDataCache.get_price_range(symbol, start_date, end_date)
 
         if not records:
@@ -289,7 +290,6 @@ class MarketDataService:
 
         data = []
         for r in records:
-            # Handle both ORM objects and dicts (from CSV backend)
             if isinstance(r, dict):
                 data.append({
                     'date': r.get('date'),
@@ -315,101 +315,75 @@ class MarketDataService:
         df.set_index('date', inplace=True)
         return df
 
-    def _find_missing_ranges(self, symbol: str, start_date: date, end_date: date) -> List[Tuple[date, date]]:
-        """
-        Find date ranges not in cache.
-
-        Args:
-            symbol: Stock ticker symbol
-            start_date: Desired start date
-            end_date: Desired end date
-
-        Returns:
-            List of (start, end) tuples for missing ranges
-        """
-        if is_csv_backend():
-            storage = get_csv_storage()
-            metadata = storage.get_market_metadata(symbol)
-        else:
-            session = get_scoped_session()
-            metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol).first()
-
-        # Handle both dict and ORM object
-        if metadata:
-            if isinstance(metadata, dict):
-                earliest = metadata.get('earliest_date')
-                latest = metadata.get('latest_date')
-            else:
-                earliest = metadata.earliest_date
-                latest = metadata.latest_date
-        else:
-            earliest = None
-            latest = None
-
-        if not earliest:
-            # No data cached, need entire range
-            return [(start_date, end_date)]
-
-        missing = []
-
-        # Gap at the beginning?
-        if start_date < earliest:
-            missing.append((start_date, earliest - timedelta(days=1)))
-
-        # Gap at the end?
-        if end_date > latest:
-            missing.append((latest + timedelta(days=1), end_date))
-
-        return missing
-
     def get_price_data(self, symbol: str, start_date: date = None, end_date: date = None) -> pd.DataFrame:
         """
-        Get price data for a symbol, fetching from Yahoo Finance if needed.
+        Get price data for a symbol.
 
-        Args:
-            symbol: Stock ticker symbol
-            start_date: Start date (default: history_years ago)
-            end_date: End date (default: today)
-
-        Returns:
-            DataFrame with OHLCV data
+        Priority:
+        1. Local CSV files
+        2. Database cache
+        3. Yahoo Finance
         """
         symbol = symbol.upper()
 
         if end_date is None:
             end_date = self.get_last_trading_day()
-
         if start_date is None:
             start_date = end_date - timedelta(days=365 * self.history_years)
 
-        # Find what's missing from cache
-        missing_ranges = self._find_missing_ranges(symbol, start_date, end_date)
+        # Try local CSV first
+        local_df = self._load_from_local_csv(symbol)
+        if local_df is not None and not local_df.empty:
+            # Filter by date range
+            filtered = local_df[(local_df.index >= start_date) & (local_df.index <= end_date)]
+            if not filtered.empty:
+                return filtered
 
-        # Fetch missing data
-        for range_start, range_end in missing_ranges:
-            logger.info(f"Fetching {symbol} data for {range_start} to {range_end}")
-            df = self._fetch_from_yahoo(symbol, range_start, range_end)
-            if df is not None:
-                self._save_to_cache(symbol, df)
+        # Try cache
+        cached_df = self._get_cached_data(symbol, start_date, end_date)
+        if not cached_df.empty:
+            return cached_df
 
-        # Return combined data from cache
-        return self._get_cached_data(symbol, start_date, end_date)
+        # Fall back to Yahoo Finance
+        df = self._fetch_from_yahoo(symbol, start_date, end_date)
+        if df is not None:
+            self._save_to_cache(symbol, df)
+            return df
+
+        return pd.DataFrame()
 
     def get_current_price(self, symbol: str) -> dict:
         """
-        Get current price for a symbol.
+        Get current/latest price for a symbol.
 
-        Returns dict with price info and source indicator.
-        Falls back to simulation if Yahoo Finance unavailable.
+        Priority:
+        1. Local CSV files (latest entry)
+        2. Database cache
+        3. Yahoo Finance
         """
         symbol = symbol.upper()
 
-        # Try to get from cache first (for recent data)
-        latest = MarketDataCache.get_latest_price(symbol)
+        # Try local CSV first
+        local_df = self._load_from_local_csv(symbol)
+        if local_df is not None and not local_df.empty:
+            latest_date = local_df.index[-1]
+            latest_row = local_df.iloc[-1]
+            return {
+                'symbol': symbol,
+                'price': float(latest_row['adj_close']) if pd.notna(latest_row['adj_close']) else float(latest_row['close']),
+                'close': float(latest_row['close']),
+                'open': float(latest_row['open']) if pd.notna(latest_row.get('open')) else None,
+                'high': float(latest_row['high']) if pd.notna(latest_row.get('high')) else None,
+                'low': float(latest_row['low']) if pd.notna(latest_row.get('low')) else None,
+                'volume': int(latest_row['volume']) if pd.notna(latest_row.get('volume')) else None,
+                'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
+                'source': 'local_csv',
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }
 
-        # Check if cache is fresh enough
+        # Try cache
+        latest = MarketDataCache.get_latest_price(symbol)
         if latest:
-            # Handle both dict and ORM object
             if isinstance(latest, dict):
                 latest_date = latest.get('date')
                 adj_close = latest.get('adj_close')
@@ -427,7 +401,7 @@ class MarketDataService:
                 low = latest.low
                 volume = latest.volume
 
-            if latest_date and latest_date >= self.get_last_trading_day() - timedelta(days=1):
+            if latest_date:
                 return {
                     'symbol': symbol,
                     'price': float(adj_close) if adj_close else 0,
@@ -441,10 +415,10 @@ class MarketDataService:
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
 
-        # Try to fetch fresh data
+        # Fall back to Yahoo Finance
         try:
             end_date = date.today()
-            start_date = end_date - timedelta(days=7)  # Fetch last week
+            start_date = end_date - timedelta(days=7)
             df = self._fetch_from_yahoo(symbol, start_date, end_date)
 
             if df is not None and not df.empty:
@@ -467,7 +441,6 @@ class MarketDataService:
         except Exception as e:
             logger.warning(f"Could not fetch current price for {symbol}: {e}")
 
-        # No data available - return error info
         return {
             'symbol': symbol,
             'price': None,
@@ -478,46 +451,49 @@ class MarketDataService:
             'volume': None,
             'date': None,
             'source': 'unavailable',
-            'error': f'No market data available for {symbol}. Please check your internet connection.',
+            'error': f'No market data available for {symbol}',
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
 
     def fetch_multiple_symbols(self, symbols: List[str], start_date: date = None, end_date: date = None) -> Dict[str, pd.DataFrame]:
-        """
-        Fetch data for multiple symbols with batching.
-
-        Args:
-            symbols: List of stock ticker symbols
-            start_date: Start date
-            end_date: End date
-
-        Returns:
-            Dict of {symbol: DataFrame}
-        """
+        """Fetch data for multiple symbols."""
         results = {}
-
         for i, symbol in enumerate(symbols):
             try:
                 results[symbol] = self.get_price_data(symbol, start_date, end_date)
-
-                # Add delay between symbols to avoid rate limits
                 if i < len(symbols) - 1:
-                    time.sleep(1.0)
-
+                    time.sleep(0.1)  # Reduced delay since we're using local files
             except Exception as e:
                 logger.error(f"Error fetching {symbol}: {e}")
                 results[symbol] = pd.DataFrame()
-
         return results
 
     def get_cache_status(self, symbol: str) -> dict:
         """Get cache status for a symbol."""
+        symbol_upper = symbol.upper()
+
+        # Check local CSV
+        csv_path = self._get_csv_filename(symbol)
+        if csv_path:
+            local_df = self._load_from_local_csv(symbol)
+            if local_df is not None and not local_df.empty:
+                return {
+                    'symbol': symbol_upper,
+                    'cached': True,
+                    'source': 'local_csv',
+                    'file': csv_path.name,
+                    'earliest_date': str(local_df.index[0]),
+                    'latest_date': str(local_df.index[-1]),
+                    'total_records': len(local_df),
+                    'last_updated': None
+                }
+
         session = get_scoped_session()
-        metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol.upper()).first()
+        metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol_upper).first()
 
         if not metadata:
             return {
-                'symbol': symbol.upper(),
+                'symbol': symbol_upper,
                 'cached': False,
                 'earliest_date': None,
                 'latest_date': None,
@@ -528,35 +504,37 @@ class MarketDataService:
         return metadata.to_dict()
 
     def clear_cache(self, symbol: str = None) -> int:
-        """
-        Clear cache for a symbol or all symbols.
-
-        Returns:
-            Number of records deleted
-        """
-        session = get_scoped_session()
+        """Clear cache for a symbol or all symbols."""
+        # Clear memory cache
         if symbol:
             symbol = symbol.upper()
+            self._local_csv_cache.pop(symbol, None)
             deleted = MarketDataCache.delete_symbol_cache(symbol)
             MarketDataMetadata.delete_metadata(symbol)
         else:
+            self._local_csv_cache.clear()
             deleted = MarketDataCache.delete_all_cache()
+            session = get_scoped_session()
             session.query(MarketDataMetadata).delete()
 
+        session = get_scoped_session()
         session.commit()
         return deleted
 
     def refresh_cache(self, symbol: str) -> bool:
-        """
-        Force refresh cache for a symbol.
-
-        Returns:
-            True if refresh successful
-        """
+        """Force refresh cache for a symbol."""
         symbol = symbol.upper()
-        metadata = MarketDataMetadata.get_or_create(symbol)
 
-        # Fetch from latest cached date to today
+        # Clear memory cache to force reload
+        self._local_csv_cache.pop(symbol, None)
+
+        # Try local CSV first
+        local_df = self._load_from_local_csv(symbol)
+        if local_df is not None and not local_df.empty:
+            return True
+
+        # Fall back to Yahoo
+        metadata = MarketDataMetadata.get_or_create(symbol)
         start_date = metadata.latest_date + timedelta(days=1) if metadata.latest_date else date.today() - timedelta(days=365 * self.history_years)
         end_date = date.today()
 
@@ -570,6 +548,21 @@ class MarketDataService:
             return True
 
         return False
+
+    def list_available_symbols(self) -> List[str]:
+        """List all symbols available in local CSV files."""
+        if not TICKER_CSV_DIR.exists():
+            return []
+
+        symbols = []
+        for f in TICKER_CSV_DIR.glob('*.csv'):
+            symbol = f.stem.upper()
+            # Clean up symbol name
+            if symbol.startswith('_'):
+                symbol = '^' + symbol[1:]  # _GSPC -> ^GSPC
+            symbols.append(symbol)
+
+        return sorted(symbols)
 
 
 # Singleton instance
