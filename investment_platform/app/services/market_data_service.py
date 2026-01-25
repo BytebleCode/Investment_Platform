@@ -31,6 +31,21 @@ logger = logging.getLogger(__name__)
 
 # Path to local ticker CSV files
 TICKER_CSV_DIR = Path(__file__).parent.parent.parent / 'data' / 'tickercsv'
+SYMBOLS_LIST_FILE = TICKER_CSV_DIR / 'symbols_filtered.csv'
+
+
+def get_available_symbols_from_list() -> list:
+    """Load available symbols from symbols_filtered.csv."""
+    if not SYMBOLS_LIST_FILE.exists():
+        return []
+
+    try:
+        with open(SYMBOLS_LIST_FILE, 'r') as f:
+            symbols = [line.strip() for line in f if line.strip()]
+        return symbols
+    except Exception as e:
+        logger.error(f"Error reading symbols list: {e}")
+        return []
 
 
 class RateLimiter:
@@ -62,17 +77,18 @@ class RateLimiter:
 
 class MarketDataService:
     """
-    Fetches real market data with local CSV and Yahoo Finance support.
+    Fetches real market data from local CSV files.
 
     Priority:
     1. Local CSV files in data/tickercsv folder
     2. Cached data in database/CSV storage
-    3. Yahoo Finance API (if available)
+    3. Yahoo Finance API (disabled by default - set use_yahoo=True to enable)
     """
 
-    def __init__(self, cache_hours: int = 24, history_years: int = 5):
+    def __init__(self, cache_hours: int = 24, history_years: int = 5, use_yahoo: bool = False):
         self.cache_hours = cache_hours
         self.history_years = history_years
+        self.use_yahoo = use_yahoo  # Disabled by default - use local CSV files only
         self.rate_limiter = RateLimiter()
         self.eastern_tz = pytz.timezone('US/Eastern')
         self._local_csv_cache = {}  # Cache loaded CSV data in memory
@@ -107,14 +123,16 @@ class MarketDataService:
 
     def _get_csv_filename(self, symbol: str) -> Optional[Path]:
         """Get the CSV file path for a symbol."""
-        # Try different filename patterns
-        symbol_clean = symbol.upper().replace('-', '').replace('^', '_')
+        symbol_upper = symbol.upper()
 
+        # Try different filename patterns
         patterns = [
-            f"{symbol.upper()}.csv",
-            f"{symbol_clean}.csv",
-            f"{symbol.upper().replace('-USD', '')}.csv",  # For crypto like BTC-USD -> BTC
-            f"_{symbol.upper().replace('^', '')}.csv",  # For indices like ^GSPC -> _GSPC
+            f"{symbol_upper}.csv",                              # Direct match: AAPL.csv
+            f"{symbol_upper.replace('.', '_')}.csv",            # Dot to underscore: BRK.B -> BRK_B.csv
+            f"{symbol_upper.replace('-', '')}.csv",             # Remove dash: BTC-USD -> BTCUSD.csv
+            f"{symbol_upper.replace('-USD', '')}.csv",          # Crypto: BTC-USD -> BTC.csv
+            f"_{symbol_upper.replace('^', '')}.csv",            # Index: ^GSPC -> _GSPC.csv
+            f"{symbol_upper.replace('^', '')}.csv",             # Index alt: ^GSPC -> GSPC.csv
         ]
 
         for pattern in patterns:
@@ -349,12 +367,14 @@ class MarketDataService:
         if not cached_df.empty:
             return cached_df
 
-        # Fall back to Yahoo Finance
-        df = self._fetch_from_yahoo(symbol, start_date, end_date)
-        if df is not None:
-            self._save_to_cache(symbol, df)
-            return df
+        # Fall back to Yahoo Finance (only if enabled)
+        if self.use_yahoo:
+            df = self._fetch_from_yahoo(symbol, start_date, end_date)
+            if df is not None:
+                self._save_to_cache(symbol, df)
+                return df
 
+        logger.warning(f"No local data available for {symbol}")
         return pd.DataFrame()
 
     def get_current_price(self, symbol: str) -> dict:
@@ -420,31 +440,32 @@ class MarketDataService:
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
 
-        # Fall back to Yahoo Finance
-        try:
-            end_date = date.today()
-            start_date = end_date - timedelta(days=7)
-            df = self._fetch_from_yahoo(symbol, start_date, end_date)
+        # Fall back to Yahoo Finance (only if enabled)
+        if self.use_yahoo:
+            try:
+                end_date = date.today()
+                start_date = end_date - timedelta(days=7)
+                df = self._fetch_from_yahoo(symbol, start_date, end_date)
 
-            if df is not None and not df.empty:
-                self._save_to_cache(symbol, df)
-                latest_row = df.iloc[-1]
-                latest_date = df.index[-1]
+                if df is not None and not df.empty:
+                    self._save_to_cache(symbol, df)
+                    latest_row = df.iloc[-1]
+                    latest_date = df.index[-1]
 
-                return {
-                    'symbol': symbol,
-                    'price': float(latest_row['adj_close']),
-                    'close': float(latest_row['close']),
-                    'open': float(latest_row['open']) if pd.notna(latest_row.get('open')) else None,
-                    'high': float(latest_row['high']) if pd.notna(latest_row.get('high')) else None,
-                    'low': float(latest_row['low']) if pd.notna(latest_row.get('low')) else None,
-                    'volume': int(latest_row['volume']) if pd.notna(latest_row.get('volume')) else None,
-                    'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
-                    'source': 'yahoo',
-                    'timestamp': datetime.now(timezone.utc).isoformat()
-                }
-        except Exception as e:
-            logger.warning(f"Could not fetch current price for {symbol}: {e}")
+                    return {
+                        'symbol': symbol,
+                        'price': float(latest_row['adj_close']),
+                        'close': float(latest_row['close']),
+                        'open': float(latest_row['open']) if pd.notna(latest_row.get('open')) else None,
+                        'high': float(latest_row['high']) if pd.notna(latest_row.get('high')) else None,
+                        'low': float(latest_row['low']) if pd.notna(latest_row.get('low')) else None,
+                        'volume': int(latest_row['volume']) if pd.notna(latest_row.get('volume')) else None,
+                        'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
+                        'source': 'yahoo',
+                        'timestamp': datetime.now(timezone.utc).isoformat()
+                    }
+            except Exception as e:
+                logger.warning(f"Could not fetch current price for {symbol}: {e}")
 
         return {
             'symbol': symbol,
@@ -538,19 +559,20 @@ class MarketDataService:
         if local_df is not None and not local_df.empty:
             return True
 
-        # Fall back to Yahoo
-        metadata = MarketDataMetadata.get_or_create(symbol)
-        start_date = metadata.latest_date + timedelta(days=1) if metadata.latest_date else date.today() - timedelta(days=365 * self.history_years)
-        end_date = date.today()
+        # Fall back to Yahoo (only if enabled)
+        if self.use_yahoo:
+            metadata = MarketDataMetadata.get_or_create(symbol)
+            start_date = metadata.latest_date + timedelta(days=1) if metadata.latest_date else date.today() - timedelta(days=365 * self.history_years)
+            end_date = date.today()
 
-        if start_date > end_date:
-            logger.info(f"Cache for {symbol} is already up to date")
-            return True
+            if start_date > end_date:
+                logger.info(f"Cache for {symbol} is already up to date")
+                return True
 
-        df = self._fetch_from_yahoo(symbol, start_date, end_date)
-        if df is not None:
-            self._save_to_cache(symbol, df)
-            return True
+            df = self._fetch_from_yahoo(symbol, start_date, end_date)
+            if df is not None:
+                self._save_to_cache(symbol, df)
+                return True
 
         return False
 
@@ -559,15 +581,23 @@ class MarketDataService:
         if not TICKER_CSV_DIR.exists():
             return []
 
-        symbols = []
+        symbols = set()
+
+        # Get symbols from actual CSV files
         for f in TICKER_CSV_DIR.glob('*.csv'):
+            if f.name == 'symbols_filtered.csv':
+                continue  # Skip the symbols list file
             symbol = f.stem.upper()
             # Clean up symbol name
             if symbol.startswith('_'):
                 symbol = '^' + symbol[1:]  # _GSPC -> ^GSPC
-            symbols.append(symbol)
+            symbols.add(symbol)
 
         return sorted(symbols)
+
+    def list_expected_symbols(self) -> List[str]:
+        """List all symbols from symbols_filtered.csv (expected to be available)."""
+        return get_available_symbols_from_list()
 
 
 # Singleton instance

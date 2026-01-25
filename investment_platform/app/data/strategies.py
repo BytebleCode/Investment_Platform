@@ -6,6 +6,7 @@ target stocks, and trading behavior configurations.
 """
 
 # Investment Strategies
+# Note: Using only symbols available in local CSV data (alphabetically up to RVTY)
 STRATEGIES = {
     'conservative': {
         'id': 'conservative',
@@ -13,7 +14,7 @@ STRATEGIES = {
         'description': 'Low-risk strategy focused on stable, dividend-paying blue chips',
         'risk_level': 1,
         'expected_return': (2, 6),  # Annual return range in percent
-        'stocks': ['JNJ', 'PG', 'KO', 'PEP', 'WMT', 'VZ', 'DUK', 'SO', 'NEE', 'MRK'],
+        'stocks': ['JNJ', 'PG', 'KO', 'PEP', 'DUK', 'NEE', 'MRK', 'CL', 'KMB', 'PEG'],
         'volatility': 0.005,
         'daily_drift': 0.00015,
         'trade_frequency_seconds': 120,
@@ -27,7 +28,7 @@ STRATEGIES = {
         'description': 'High-growth focus on technology and innovation leaders',
         'risk_level': 4,
         'expected_return': (10, 25),
-        'stocks': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'AMD', 'CRM', 'TSLA'],
+        'stocks': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'AMD', 'CRM', 'NFLX', 'NOW', 'ADBE'],
         'volatility': 0.015,
         'daily_drift': 0.0005,
         'trade_frequency_seconds': 60,
@@ -41,7 +42,7 @@ STRATEGIES = {
         'description': 'Focus on undervalued stocks with strong fundamentals',
         'risk_level': 2,
         'expected_return': (6, 12),
-        'stocks': ['BRK.B', 'JPM', 'BAC', 'WFC', 'GS', 'V', 'MA', 'UNH', 'PFE'],
+        'stocks': ['BLK', 'JPM', 'BAC', 'GS', 'MA', 'PFE', 'CVS', 'IBM', 'MET', 'PRU'],
         'volatility': 0.008,
         'daily_drift': 0.0003,
         'trade_frequency_seconds': 90,
@@ -55,7 +56,7 @@ STRATEGIES = {
         'description': 'Diversified mix of growth and stability across sectors',
         'risk_level': 3,
         'expected_return': (5, 12),
-        'stocks': ['AAPL', 'MSFT', 'JNJ', 'PG', 'JPM', 'V', 'UNH', 'KO', 'XOM', 'CAT'],
+        'stocks': ['AAPL', 'MSFT', 'JNJ', 'PG', 'JPM', 'KO', 'CAT', 'HON', 'LMT', 'MMM'],
         'volatility': 0.01,
         'daily_drift': 0.00035,
         'trade_frequency_seconds': 75,
@@ -69,7 +70,7 @@ STRATEGIES = {
         'description': 'High-risk, high-reward speculation on volatile stocks',
         'risk_level': 5,
         'expected_return': (-20, 50),
-        'stocks': ['COIN', 'MSTR', 'RIVN', 'PLTR', 'TSLA', 'NVDA', 'AMD', 'BA'],
+        'stocks': ['COIN', 'PLTR', 'NVDA', 'AMD', 'BA', 'CRWD', 'PANW', 'ABNB'],
         'volatility': 0.025,
         'daily_drift': 0.0004,
         'trade_frequency_seconds': 45,
