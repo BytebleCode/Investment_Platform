@@ -28,6 +28,8 @@ class CSVStorage:
         'strategy_customizations': 'strategy_customizations.csv',
         'market_data_cache': 'market_data_cache.csv',
         'market_data_metadata': 'market_data_metadata.csv',
+        'user_strategies': 'user_strategies.csv',
+        'user_strategy_stocks': 'user_strategy_stocks.csv',
     }
 
     # Column definitions for each model (order matters for CSV)
@@ -56,6 +58,17 @@ class CSVStorage:
         'market_data_metadata': [
             'id', 'symbol', 'last_fetch_date', 'earliest_date', 'latest_date',
             'total_records', 'last_updated', 'fetch_status'
+        ],
+        'user_strategies': [
+            'id', 'user_id', 'strategy_id', 'name', 'description', 'color', 'is_active',
+            'risk_level', 'expected_return_min', 'expected_return_max',
+            'volatility', 'daily_drift', 'trade_frequency_seconds',
+            'target_investment_ratio', 'max_position_pct',
+            'stop_loss_percent', 'take_profit_percent', 'auto_rebalance',
+            'based_on_template', 'created_at', 'updated_at'
+        ],
+        'user_strategy_stocks': [
+            'id', 'user_strategy_id', 'strategy_id', 'symbol', 'weight', 'created_at'
         ],
     }
 
@@ -182,13 +195,22 @@ class CSVStorage:
             except ValueError:
                 return None
 
-        if field_name in ('is_initialized', 'auto_rebalance', 'reinvest_dividends'):
+        if field_name in ('is_initialized', 'auto_rebalance', 'reinvest_dividends', 'is_active'):
             return int(value) if value else 0
 
         if field_name in ('confidence_level', 'max_position_size',
-                          'stop_loss_percent', 'take_profit_percent'):
+                          'stop_loss_percent', 'take_profit_percent',
+                          'risk_level', 'expected_return_min', 'expected_return_max',
+                          'trade_frequency_seconds', 'user_strategy_id'):
             try:
                 return int(value)
+            except ValueError:
+                return value
+
+        if field_name in ('volatility', 'daily_drift', 'target_investment_ratio',
+                          'max_position_pct', 'weight'):
+            try:
+                return float(value)
             except ValueError:
                 return value
 
@@ -601,6 +623,177 @@ class CSVStorage:
             if not latest or date.fromisoformat(latest) < before_date:
                 stale.append(row.get('symbol'))
         return stale
+
+    # =====================
+    # User Strategies CRUD
+    # =====================
+
+    def get_user_strategies(self, user_id='default', include_inactive=False):
+        """Get all user strategies for a user."""
+        rows = self._read_all('user_strategies')
+        strategies = []
+        for row in rows:
+            if row.get('user_id') == user_id:
+                if include_inactive or row.get('is_active', '1') == '1':
+                    strategies.append(self._deserialize_row(row, 'user_strategies'))
+        return strategies
+
+    def get_user_strategy(self, strategy_id, user_id='default'):
+        """Get a specific user strategy."""
+        rows = self._read_all('user_strategies')
+        for row in rows:
+            if row.get('strategy_id') == strategy_id and row.get('user_id') == user_id:
+                return self._deserialize_row(row, 'user_strategies')
+        return None
+
+    def create_user_strategy(self, user_id, strategy_id, **kwargs):
+        """Create a new user strategy."""
+        now = datetime.now(timezone.utc)
+        row = {
+            'id': self._next_id('user_strategies'),
+            'user_id': user_id,
+            'strategy_id': strategy_id,
+            'name': kwargs.get('name', strategy_id.title()),
+            'description': kwargs.get('description', ''),
+            'color': kwargs.get('color', '#3b82f6'),
+            'is_active': kwargs.get('is_active', 1),
+            'risk_level': kwargs.get('risk_level', 3),
+            'expected_return_min': kwargs.get('expected_return_min', 5),
+            'expected_return_max': kwargs.get('expected_return_max', 15),
+            'volatility': kwargs.get('volatility', 0.01),
+            'daily_drift': kwargs.get('daily_drift', 0.00035),
+            'trade_frequency_seconds': kwargs.get('trade_frequency_seconds', 75),
+            'target_investment_ratio': kwargs.get('target_investment_ratio', 0.7),
+            'max_position_pct': kwargs.get('max_position_pct', 0.15),
+            'stop_loss_percent': kwargs.get('stop_loss_percent', 10),
+            'take_profit_percent': kwargs.get('take_profit_percent', 20),
+            'auto_rebalance': kwargs.get('auto_rebalance', 1),
+            'based_on_template': kwargs.get('based_on_template', ''),
+            'created_at': now,
+            'updated_at': now,
+        }
+
+        rows = self._read_all('user_strategies')
+        serialized = {k: self._serialize_value(v) for k, v in row.items()}
+        rows.append(serialized)
+        self._write_all('user_strategies', rows)
+        return self._deserialize_row(row, 'user_strategies')
+
+    def update_user_strategy(self, strategy_id, user_id='default', **kwargs):
+        """Update an existing user strategy."""
+        rows = self._read_all('user_strategies')
+        updated = False
+        updated_row = None
+
+        for i, row in enumerate(rows):
+            if row.get('strategy_id') == strategy_id and row.get('user_id') == user_id:
+                for key, value in kwargs.items():
+                    if key in self.COLUMNS['user_strategies']:
+                        rows[i][key] = self._serialize_value(value)
+                rows[i]['updated_at'] = self._serialize_value(datetime.now(timezone.utc))
+                updated = True
+                updated_row = rows[i]
+                break
+
+        if updated:
+            self._write_all('user_strategies', rows)
+            return self._deserialize_row(updated_row, 'user_strategies')
+        return None
+
+    def delete_user_strategy(self, strategy_id, user_id='default', hard_delete=False):
+        """Delete (archive) a user strategy."""
+        if hard_delete:
+            rows = self._read_all('user_strategies')
+            original_len = len(rows)
+            rows = [r for r in rows if not (r.get('strategy_id') == strategy_id and r.get('user_id') == user_id)]
+            if len(rows) < original_len:
+                self._write_all('user_strategies', rows)
+                # Also delete associated stocks
+                self.delete_all_strategy_stocks(strategy_id)
+                return True
+            return False
+        else:
+            return self.update_user_strategy(strategy_id, user_id, is_active=0) is not None
+
+    # =====================
+    # User Strategy Stocks CRUD
+    # =====================
+
+    def get_strategy_stocks(self, strategy_id):
+        """Get all stocks for a strategy."""
+        rows = self._read_all('user_strategy_stocks')
+        return [
+            self._deserialize_row(row, 'user_strategy_stocks')
+            for row in rows
+            if row.get('strategy_id') == strategy_id
+        ]
+
+    def set_strategy_stocks(self, strategy_id, symbols, user_strategy_id=None):
+        """Replace all stocks for a strategy with new list."""
+        # Delete existing stocks for this strategy
+        rows = self._read_all('user_strategy_stocks')
+        rows = [r for r in rows if r.get('strategy_id') != strategy_id]
+
+        now = datetime.now(timezone.utc)
+        for symbol in symbols:
+            row = {
+                'id': self._next_id('user_strategy_stocks'),
+                'user_strategy_id': user_strategy_id or '',
+                'strategy_id': strategy_id,
+                'symbol': symbol.upper(),
+                'weight': 1.0,
+                'created_at': now,
+            }
+            serialized = {k: self._serialize_value(v) for k, v in row.items()}
+            rows.append(serialized)
+
+        self._write_all('user_strategy_stocks', rows)
+        return True
+
+    def add_strategy_stock(self, strategy_id, symbol, weight=1.0, user_strategy_id=None):
+        """Add a single stock to a strategy."""
+        rows = self._read_all('user_strategy_stocks')
+
+        # Check if already exists
+        for row in rows:
+            if row.get('strategy_id') == strategy_id and row.get('symbol') == symbol.upper():
+                # Update weight
+                row['weight'] = self._serialize_value(weight)
+                self._write_all('user_strategy_stocks', rows)
+                return self._deserialize_row(row, 'user_strategy_stocks')
+
+        # Add new stock
+        now = datetime.now(timezone.utc)
+        new_row = {
+            'id': self._next_id('user_strategy_stocks'),
+            'user_strategy_id': user_strategy_id or '',
+            'strategy_id': strategy_id,
+            'symbol': symbol.upper(),
+            'weight': weight,
+            'created_at': now,
+        }
+        serialized = {k: self._serialize_value(v) for k, v in new_row.items()}
+        rows.append(serialized)
+        self._write_all('user_strategy_stocks', rows)
+        return self._deserialize_row(new_row, 'user_strategy_stocks')
+
+    def remove_strategy_stock(self, strategy_id, symbol):
+        """Remove a stock from a strategy."""
+        rows = self._read_all('user_strategy_stocks')
+        original_len = len(rows)
+        rows = [r for r in rows if not (r.get('strategy_id') == strategy_id and r.get('symbol') == symbol.upper())]
+
+        if len(rows) < original_len:
+            self._write_all('user_strategy_stocks', rows)
+            return True
+        return False
+
+    def delete_all_strategy_stocks(self, strategy_id):
+        """Delete all stocks for a strategy."""
+        rows = self._read_all('user_strategy_stocks')
+        rows = [r for r in rows if r.get('strategy_id') != strategy_id]
+        self._write_all('user_strategy_stocks', rows)
+        return True
 
 
 # Global CSV storage instance

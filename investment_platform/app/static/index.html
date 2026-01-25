@@ -1042,6 +1042,379 @@
                 grid-template-columns: 1fr 1fr;
             }
         }
+
+        /* ===== MODAL STYLES ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 20px;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 700px;
+            padding: 0;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .modal-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: var(--accent-red);
+        }
+
+        .modal-body {
+            padding: 24px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 16px 24px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        /* Form Sections */
+        .form-section {
+            margin-bottom: 24px;
+        }
+
+        .form-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-section-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-row:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Color Picker */
+        .color-picker-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .color-picker-input {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .color-picker-input::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        .color-picker-input::-webkit-color-swatch {
+            border: 2px solid var(--border-subtle);
+            border-radius: 6px;
+        }
+
+        /* Range Slider */
+        .range-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .range-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--accent-cyan);
+            text-align: center;
+        }
+
+        .range-input {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .range-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 245, 255, 0.4);
+        }
+
+        /* Stock Selection */
+        .stock-search-wrapper {
+            position: relative;
+            margin-bottom: 12px;
+        }
+
+        .stock-search-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'DM Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .stock-search-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 8px;
+            margin-top: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+
+        .suggestions-dropdown.visible {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 10px 14px;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .suggestion-item:hover {
+            background: rgba(0, 245, 255, 0.1);
+            color: var(--accent-cyan);
+        }
+
+        .selected-stocks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 40px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .stock-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(0, 245, 255, 0.15);
+            border: 1px solid rgba(0, 245, 255, 0.3);
+            border-radius: 6px;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+        }
+
+        .stock-chip-remove {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+
+        .stock-chip-remove:hover {
+            color: var(--accent-red);
+        }
+
+        .stock-count {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Strategy Badge */
+        .strategy-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .strategy-badge.system {
+            background: rgba(157, 78, 221, 0.2);
+            color: var(--accent-purple);
+            border: 1px solid rgba(157, 78, 221, 0.3);
+        }
+
+        .strategy-badge.custom {
+            background: rgba(0, 245, 255, 0.2);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(0, 245, 255, 0.3);
+        }
+
+        /* Strategy Card Actions */
+        .strategy-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .btn-icon {
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-icon:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .btn-icon.delete:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        /* Section Header with Button */
+        .section-header-with-action {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-create {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, #00c4cc 100%);
+            color: var(--bg-void);
+            border: none;
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-create:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        /* Strategy Header */
+        .strategy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
@@ -1361,8 +1734,11 @@
 
         <!-- Investment Strategies Section -->
         <section class="strategies-section" id="strategies">
-            <div class="section-header">
+            <div class="section-header section-header-with-action">
                 <h2 class="section-title">Investment Strategies</h2>
+                <button class="btn-create" onclick="openCreateStrategyModal()">
+                    + Create Strategy
+                </button>
             </div>
             <div class="strategy-grid" id="strategies-list">
                 <div class="loading">Loading strategies...</div>
@@ -1434,6 +1810,132 @@
             </div>
         </div>
     </footer>
+
+    <!-- Strategy Editor Modal -->
+    <div class="modal-overlay" id="strategy-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Create Strategy</h3>
+                <button class="modal-close" onclick="closeStrategyModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-strategy-id" value="">
+
+                <!-- Basic Info Section -->
+                <div class="form-section">
+                    <h4 class="form-section-title">Basic Information</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Strategy Name</label>
+                            <input type="text" class="form-input" id="strategy-name" placeholder="My Strategy" maxlength="50">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Color</label>
+                            <div class="color-picker-wrapper">
+                                <input type="color" class="color-picker-input" id="strategy-color" value="#3b82f6">
+                                <input type="text" class="form-input" id="strategy-color-text" value="#3b82f6" style="flex: 1;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-input" id="strategy-description" rows="2" placeholder="Describe your strategy..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Risk Profile Section -->
+                <div class="form-section">
+                    <h4 class="form-section-title">Risk Profile</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Risk Level</label>
+                            <div class="range-wrapper">
+                                <input type="range" class="range-input" id="strategy-risk" min="1" max="5" value="3">
+                                <div class="range-value" id="risk-value-display">3 - Medium</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Expected Return Min (%)</label>
+                            <input type="number" class="form-input" id="strategy-return-min" value="5" min="-50" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expected Return Max (%)</label>
+                            <input type="number" class="form-input" id="strategy-return-max" value="15" min="-50" max="100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trading Parameters Section -->
+                <div class="form-section">
+                    <h4 class="form-section-title">Trading Parameters</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Volatility</label>
+                            <input type="number" class="form-input" id="strategy-volatility" value="0.01" min="0.001" max="0.1" step="0.001">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Daily Drift</label>
+                            <input type="number" class="form-input" id="strategy-drift" value="0.00035" min="0" max="0.01" step="0.00001">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Trade Frequency (seconds)</label>
+                            <input type="number" class="form-input" id="strategy-frequency" value="75" min="30" max="300">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Investment Ratio (%)</label>
+                            <input type="number" class="form-input" id="strategy-investment-ratio" value="70" min="10" max="100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Management Section -->
+                <div class="form-section">
+                    <h4 class="form-section-title">Risk Management</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Max Position (%)</label>
+                            <input type="number" class="form-input" id="strategy-max-position" value="15" min="5" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Stop Loss (%)</label>
+                            <input type="number" class="form-input" id="strategy-stop-loss" value="10" min="5" max="30">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Take Profit (%)</label>
+                            <input type="number" class="form-input" id="strategy-take-profit" value="20" min="10" max="100">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="strategy-auto-rebalance" checked style="width: 18px; height: 18px;">
+                                Auto Rebalance
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stock Selection Section -->
+                <div class="form-section">
+                    <h4 class="form-section-title">Stock Selection</h4>
+                    <div class="stock-search-wrapper">
+                        <input type="text" class="stock-search-input" id="stock-search" placeholder="Search symbols (e.g., AAPL, MSFT)..." autocomplete="off">
+                        <div class="suggestions-dropdown" id="stock-suggestions"></div>
+                    </div>
+                    <div class="selected-stocks" id="selected-stocks"></div>
+                    <div class="stock-count" id="stock-count">0 stocks selected (1-50 required)</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeStrategyModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveStrategy()">Save Strategy</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         // ===== PARTICLE SYSTEM =====
@@ -1924,41 +2426,331 @@
         }
 
         async function loadStrategies() {
-            const data = await fetchAPI('/strategies/customizations');
+            const data = await fetchAPI('/strategies');
             const el = document.getElementById('strategies-list');
 
-            if (data.error || !data.customizations || data.customizations.length === 0) {
+            if (data.error || !data.strategies || data.strategies.length === 0) {
                 el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">&#x1F3AF;</div><div>No strategies configured</div></div>`;
                 return;
             }
 
-            const colors = {
-                conservative: '#00FF9F',
-                growth: '#00F5FF',
-                value: '#9D4EDD',
-                balanced: '#FFB800',
-                aggressive: '#FF2D55'
-            };
+            const riskLabels = {1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High'};
 
-            el.innerHTML = data.customizations.map(s => `
+            el.innerHTML = data.strategies.map(s => {
+                const isSystem = s.is_system;
+                const strategyColor = s.color || '#3b82f6';
+                const stockCount = (s.stocks || []).length;
+                const riskLabel = riskLabels[s.risk_level] || 'Medium';
+
+                return `
                 <div class="strategy-card ${s.strategy_id === currentStrategy ? 'active' : ''}"
-                     style="--strategy-color: ${colors[s.strategy_id] || 'var(--accent-cyan)'};"
+                     style="--strategy-color: ${strategyColor};"
                      onclick="selectStrategy('${s.strategy_id}')">
-                    <div class="strategy-name">${s.strategy_id.charAt(0).toUpperCase() + s.strategy_id.slice(1)}</div>
-                    <div class="strategy-risk">Confidence: ${s.confidence_level}%</div>
+                    <div class="strategy-header">
+                        <div>
+                            <div class="strategy-name">${s.name || s.strategy_id}</div>
+                            <div class="strategy-risk">Risk: ${riskLabel} | ${stockCount} stocks</div>
+                        </div>
+                        <span class="strategy-badge ${isSystem ? 'system' : 'custom'}">${isSystem ? 'System' : 'Custom'}</span>
+                    </div>
                     <div class="strategy-metrics">
                         <div class="strategy-metric">
-                            <div class="strategy-metric-value">${s.trade_frequency}</div>
-                            <div class="strategy-metric-label">Frequency</div>
+                            <div class="strategy-metric-value">${s.expected_return_min || 0}-${s.expected_return_max || 0}%</div>
+                            <div class="strategy-metric-label">Expected</div>
                         </div>
                         <div class="strategy-metric">
-                            <div class="strategy-metric-value">${s.max_position_size}%</div>
+                            <div class="strategy-metric-value">${Math.round((s.max_position_pct || 0.15) * 100)}%</div>
                             <div class="strategy-metric-label">Max Pos</div>
                         </div>
                     </div>
+                    <div class="strategy-actions" onclick="event.stopPropagation()">
+                        ${isSystem ? `
+                            <button class="btn-icon" onclick="cloneStrategy('${s.strategy_id}', '${s.name}')">Clone</button>
+                        ` : `
+                            <button class="btn-icon" onclick="editStrategy('${s.strategy_id}')">Edit</button>
+                            <button class="btn-icon delete" onclick="deleteStrategy('${s.strategy_id}', '${s.name}')">Delete</button>
+                        `}
+                    </div>
                 </div>
+            `}).join('');
+
+            // Also update the backtest strategy dropdown
+            updateBacktestStrategies(data.strategies);
+        }
+
+        function updateBacktestStrategies(strategies) {
+            const select = document.getElementById('backtest-strategy');
+            if (!select) return;
+
+            select.innerHTML = strategies.map(s => `
+                <option value="${s.strategy_id}">${s.name || s.strategy_id}${s.is_system ? '' : ' (Custom)'}</option>
             `).join('');
         }
+
+        // ===== STRATEGY MODAL FUNCTIONS =====
+        let selectedStocks = [];
+        let searchTimeout = null;
+
+        function openCreateStrategyModal() {
+            document.getElementById('modal-title').textContent = 'Create Strategy';
+            document.getElementById('edit-strategy-id').value = '';
+            resetStrategyForm();
+            document.getElementById('strategy-modal').classList.add('visible');
+        }
+
+        async function editStrategy(strategyId) {
+            const data = await fetchAPI(`/strategies/${strategyId}`);
+            if (data.error) {
+                showMessage('Error loading strategy: ' + data.error, true);
+                return;
+            }
+
+            document.getElementById('modal-title').textContent = 'Edit Strategy';
+            document.getElementById('edit-strategy-id').value = strategyId;
+
+            // Populate form
+            document.getElementById('strategy-name').value = data.name || '';
+            document.getElementById('strategy-description').value = data.description || '';
+            document.getElementById('strategy-color').value = data.color || '#3b82f6';
+            document.getElementById('strategy-color-text').value = data.color || '#3b82f6';
+            document.getElementById('strategy-risk').value = data.risk_level || 3;
+            updateRiskDisplay();
+            document.getElementById('strategy-return-min').value = data.expected_return_min || 5;
+            document.getElementById('strategy-return-max').value = data.expected_return_max || 15;
+            document.getElementById('strategy-volatility').value = data.volatility || 0.01;
+            document.getElementById('strategy-drift').value = data.daily_drift || 0.00035;
+            document.getElementById('strategy-frequency').value = data.trade_frequency_seconds || 75;
+            document.getElementById('strategy-investment-ratio').value = Math.round((data.target_investment_ratio || 0.7) * 100);
+            document.getElementById('strategy-max-position').value = Math.round((data.max_position_pct || 0.15) * 100);
+            document.getElementById('strategy-stop-loss').value = data.stop_loss_percent || 10;
+            document.getElementById('strategy-take-profit').value = data.take_profit_percent || 20;
+            document.getElementById('strategy-auto-rebalance').checked = data.auto_rebalance !== false;
+
+            // Set selected stocks
+            selectedStocks = data.stocks || [];
+            renderSelectedStocks();
+
+            document.getElementById('strategy-modal').classList.add('visible');
+        }
+
+        async function cloneStrategy(strategyId, originalName) {
+            const newName = prompt('Enter name for cloned strategy:', originalName + ' (Copy)');
+            if (!newName || !newName.trim()) return;
+
+            const data = await fetchAPI(`/strategies/${strategyId}/clone`, {
+                method: 'POST',
+                body: JSON.stringify({ name: newName.trim() })
+            });
+
+            if (data.error) {
+                showMessage('Error cloning strategy: ' + data.error, true);
+            } else {
+                showMessage('Strategy cloned successfully!');
+                loadStrategies();
+            }
+        }
+
+        async function deleteStrategy(strategyId, name) {
+            if (!confirm(`Delete strategy "${name}"? This action cannot be undone.`)) return;
+
+            const data = await fetchAPI(`/strategies/${strategyId}?hard_delete=true`, {
+                method: 'DELETE'
+            });
+
+            if (data.error) {
+                showMessage('Error deleting strategy: ' + data.error, true);
+            } else {
+                showMessage('Strategy deleted successfully!');
+                loadStrategies();
+            }
+        }
+
+        function closeStrategyModal() {
+            document.getElementById('strategy-modal').classList.remove('visible');
+        }
+
+        function resetStrategyForm() {
+            document.getElementById('strategy-name').value = '';
+            document.getElementById('strategy-description').value = '';
+            document.getElementById('strategy-color').value = '#3b82f6';
+            document.getElementById('strategy-color-text').value = '#3b82f6';
+            document.getElementById('strategy-risk').value = 3;
+            updateRiskDisplay();
+            document.getElementById('strategy-return-min').value = 5;
+            document.getElementById('strategy-return-max').value = 15;
+            document.getElementById('strategy-volatility').value = 0.01;
+            document.getElementById('strategy-drift').value = 0.00035;
+            document.getElementById('strategy-frequency').value = 75;
+            document.getElementById('strategy-investment-ratio').value = 70;
+            document.getElementById('strategy-max-position').value = 15;
+            document.getElementById('strategy-stop-loss').value = 10;
+            document.getElementById('strategy-take-profit').value = 20;
+            document.getElementById('strategy-auto-rebalance').checked = true;
+            selectedStocks = [];
+            renderSelectedStocks();
+        }
+
+        async function saveStrategy() {
+            const strategyId = document.getElementById('edit-strategy-id').value;
+            const isEdit = !!strategyId;
+
+            const name = document.getElementById('strategy-name').value.trim();
+            if (!name || name.length < 3) {
+                showMessage('Strategy name must be at least 3 characters', true);
+                return;
+            }
+
+            if (selectedStocks.length < 1) {
+                showMessage('At least 1 stock is required', true);
+                return;
+            }
+
+            const payload = {
+                name: name,
+                description: document.getElementById('strategy-description').value,
+                color: document.getElementById('strategy-color').value,
+                risk_level: parseInt(document.getElementById('strategy-risk').value),
+                expected_return_min: parseInt(document.getElementById('strategy-return-min').value),
+                expected_return_max: parseInt(document.getElementById('strategy-return-max').value),
+                volatility: parseFloat(document.getElementById('strategy-volatility').value),
+                daily_drift: parseFloat(document.getElementById('strategy-drift').value),
+                trade_frequency_seconds: parseInt(document.getElementById('strategy-frequency').value),
+                target_investment_ratio: parseInt(document.getElementById('strategy-investment-ratio').value) / 100,
+                max_position_pct: parseInt(document.getElementById('strategy-max-position').value) / 100,
+                stop_loss_percent: parseInt(document.getElementById('strategy-stop-loss').value),
+                take_profit_percent: parseInt(document.getElementById('strategy-take-profit').value),
+                auto_rebalance: document.getElementById('strategy-auto-rebalance').checked,
+                stocks: selectedStocks
+            };
+
+            const endpoint = isEdit ? `/strategies/${strategyId}` : '/strategies';
+            const method = isEdit ? 'PUT' : 'POST';
+
+            const data = await fetchAPI(endpoint, {
+                method: method,
+                body: JSON.stringify(payload)
+            });
+
+            if (data.error) {
+                showMessage('Error: ' + data.error, true);
+            } else {
+                showMessage(`Strategy ${isEdit ? 'updated' : 'created'} successfully!`);
+                closeStrategyModal();
+                loadStrategies();
+            }
+        }
+
+        // Risk level display
+        function updateRiskDisplay() {
+            const value = document.getElementById('strategy-risk').value;
+            const labels = {1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High'};
+            document.getElementById('risk-value-display').textContent = `${value} - ${labels[value]}`;
+        }
+
+        // Color picker sync
+        document.getElementById('strategy-color').addEventListener('input', (e) => {
+            document.getElementById('strategy-color-text').value = e.target.value;
+        });
+
+        document.getElementById('strategy-color-text').addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                document.getElementById('strategy-color').value = value;
+            }
+        });
+
+        document.getElementById('strategy-risk').addEventListener('input', updateRiskDisplay);
+
+        // Stock search
+        document.getElementById('stock-search').addEventListener('input', async (e) => {
+            const query = e.target.value.trim();
+            clearTimeout(searchTimeout);
+
+            if (query.length < 1) {
+                document.getElementById('stock-suggestions').classList.remove('visible');
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                const data = await fetchAPI(`/strategies/symbols?q=${encodeURIComponent(query)}&limit=10`);
+                const dropdown = document.getElementById('stock-suggestions');
+
+                if (data.symbols && data.symbols.length > 0) {
+                    const filtered = data.symbols.filter(s => !selectedStocks.includes(s));
+                    if (filtered.length > 0) {
+                        dropdown.innerHTML = filtered.map(s =>
+                            `<div class="suggestion-item" onclick="addStock('${s}')">${s}</div>`
+                        ).join('');
+                        dropdown.classList.add('visible');
+                    } else {
+                        dropdown.classList.remove('visible');
+                    }
+                } else {
+                    dropdown.classList.remove('visible');
+                }
+            }, 200);
+        });
+
+        document.getElementById('stock-search').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const value = e.target.value.trim().toUpperCase();
+                if (value && !selectedStocks.includes(value)) {
+                    addStock(value);
+                }
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.stock-search-wrapper')) {
+                document.getElementById('stock-suggestions').classList.remove('visible');
+            }
+        });
+
+        function addStock(symbol) {
+            if (selectedStocks.length >= 50) {
+                showMessage('Maximum 50 stocks allowed', true);
+                return;
+            }
+            if (!selectedStocks.includes(symbol)) {
+                selectedStocks.push(symbol);
+                renderSelectedStocks();
+            }
+            document.getElementById('stock-search').value = '';
+            document.getElementById('stock-suggestions').classList.remove('visible');
+        }
+
+        function removeStock(symbol) {
+            selectedStocks = selectedStocks.filter(s => s !== symbol);
+            renderSelectedStocks();
+        }
+
+        function renderSelectedStocks() {
+            const container = document.getElementById('selected-stocks');
+            const countEl = document.getElementById('stock-count');
+
+            container.innerHTML = selectedStocks.map(s =>
+                `<span class="stock-chip">${s}<button class="stock-chip-remove" onclick="removeStock('${s}')">&times;</button></span>`
+            ).join('');
+
+            const count = selectedStocks.length;
+            countEl.textContent = `${count} stock${count !== 1 ? 's' : ''} selected (1-50 required)`;
+            countEl.style.color = count >= 1 && count <= 50 ? 'var(--accent-green)' : 'var(--accent-red)';
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeStrategyModal();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('strategy-modal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeStrategyModal();
+            }
+        });
 
         async function selectStrategy(strategyId) {
             const data = await fetchAPI('/portfolio/settings', {

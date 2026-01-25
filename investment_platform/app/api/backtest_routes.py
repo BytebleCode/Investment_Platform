@@ -12,6 +12,7 @@ import logging
 from app.database import is_csv_backend, get_csv_storage
 from app.data.strategies import STRATEGIES, STRATEGY_IDS
 from app.services.market_data_service import get_market_data_service
+from app.services.strategy_service import StrategyService
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def fetch_historical_data(symbols, start_date, end_date):
     return data
 
 
-def run_backtest(strategy_id, start_date, end_date, initial_capital):
+def run_backtest(strategy_id, start_date, end_date, initial_capital, user_id='default'):
     """
     Run a backtest simulation for a given strategy using real historical data.
 
@@ -62,12 +63,14 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital):
     """
     import math
 
-    # Get strategy config
-    strategy = STRATEGIES.get(strategy_id)
+    # Get strategy config from StrategyService (supports both system and user strategies)
+    service = StrategyService(user_id)
+    strategy = service.get_strategy(strategy_id)
+
     if not strategy:
         raise ValueError(f"Unknown strategy: {strategy_id}")
 
-    # Get strategy symbols
+    # Get strategy symbols (now uses customized stocks!)
     symbols = strategy.get('stocks', ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META'])
     max_position_pct = strategy.get('max_position_pct', 0.15)
     target_investment_ratio = strategy.get('target_investment_ratio', 0.7)
@@ -321,12 +324,16 @@ def run_backtest_endpoint():
     }
     """
     data = request.get_json() or {}
+    user_id = data.get('user_id', 'default')
 
     strategy_id = data.get('strategy_id', 'balanced')
-    if strategy_id not in STRATEGY_IDS:
+
+    # Validate strategy exists (system or user)
+    service = StrategyService(user_id)
+    if not service.get_strategy(strategy_id):
         return jsonify({
             'error': f'Invalid strategy: {strategy_id}',
-            'valid_strategies': list(STRATEGY_IDS)
+            'valid_strategies': [s['strategy_id'] for s in service.get_all_strategies()]
         }), 400
 
     # Parse dates
@@ -355,8 +362,8 @@ def run_backtest_endpoint():
         return jsonify({'error': 'initial_capital must be at least 1000'}), 400
 
     try:
-        # Run the backtest
-        result = run_backtest(strategy_id, start_date, end_date, initial_capital)
+        # Run the backtest (now uses StrategyService for customized stocks/params)
+        result = run_backtest(strategy_id, start_date, end_date, initial_capital, user_id)
 
         # Generate unique ID and store result
         backtest_id = f"bt_{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:8]}"
@@ -386,20 +393,26 @@ def get_backtest_result(backtest_id):
 def get_available_strategies():
     """
     GET /api/backtest/strategies
-    Get list of strategies available for backtesting.
+    Get list of strategies available for backtesting (system + user).
     """
+    user_id = request.args.get('user_id', 'default')
     risk_labels = {1: 'very low', 2: 'low', 3: 'medium', 4: 'high', 5: 'very high'}
+
+    # Get all strategies from StrategyService
+    service = StrategyService(user_id)
+    all_strategies = service.get_all_strategies()
+
     strategies = []
-    for sid in STRATEGY_IDS:
-        strategy = STRATEGIES.get(sid, {})
+    for strategy in all_strategies:
         risk_num = strategy.get('risk_level', 3)
         strategies.append({
-            'id': sid,
-            'name': strategy.get('name', sid.title()),
+            'id': strategy.get('strategy_id'),
+            'name': strategy.get('name', strategy.get('strategy_id', '').title()),
             'risk_level': risk_labels.get(risk_num, 'medium'),
             'risk_value': risk_num,
             'description': strategy.get('description', ''),
-            'stock_count': len(strategy.get('stocks', []))
+            'stock_count': len(strategy.get('stocks', [])),
+            'is_system': strategy.get('is_system', False)
         })
 
     return jsonify({
@@ -414,16 +427,20 @@ def get_cache_status():
     GET /api/backtest/cache/status
     Get cache status for market data used in backtesting.
     """
-    service = get_market_data_service()
+    user_id = request.args.get('user_id', 'default')
+    market_service = get_market_data_service()
 
-    # Get all strategy symbols
+    # Get all strategy symbols (system + user strategies)
+    strategy_service = StrategyService(user_id)
+    all_strategies = strategy_service.get_all_strategies()
+
     all_symbols = set()
-    for strategy in STRATEGIES.values():
+    for strategy in all_strategies:
         all_symbols.update(strategy.get('stocks', []))
 
     cache_info = []
     for symbol in sorted(all_symbols):
-        status = service.get_cache_status(symbol)
+        status = market_service.get_cache_status(symbol)
         if isinstance(status, dict):
             cache_info.append(status)
 

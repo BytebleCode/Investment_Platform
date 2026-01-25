@@ -60,6 +60,18 @@ from app.services.market_data_service import (
     RateLimiter
 )
 
+from app.services.strategy_service import StrategyService
+
+from app.services.available_symbols import (
+    load_symbols,
+    get_all_symbols,
+    is_valid_symbol,
+    validate_symbols,
+    search_symbols,
+    get_symbol_count,
+    refresh_symbols
+)
+
 __all__ = [
     # Price Generator
     'generate_price',
@@ -108,5 +120,15 @@ __all__ = [
     # Market Data Service
     'MarketDataService',
     'get_market_data_service',
-    'RateLimiter'
+    'RateLimiter',
+    # Strategy Service
+    'StrategyService',
+    # Available Symbols
+    'load_symbols',
+    'get_all_symbols',
+    'is_valid_symbol',
+    'validate_symbols',
+    'search_symbols',
+    'get_symbol_count',
+    'refresh_symbols'
 ]

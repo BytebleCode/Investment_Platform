@@ -10,6 +10,8 @@ from app.models.trades import TradesHistory
 from app.models.strategy import StrategyCustomization
 from app.models.market_data import MarketDataCache
 from app.models.market_metadata import MarketDataMetadata
+from app.models.user_strategy import UserStrategy
+from app.models.user_strategy_stocks import UserStrategyStock
 
 __all__ = [
     'PortfolioState',
@@ -17,5 +19,7 @@ __all__ = [
     'TradesHistory',
     'StrategyCustomization',
     'MarketDataCache',
-    'MarketDataMetadata'
+    'MarketDataMetadata',
+    'UserStrategy',
+    'UserStrategyStock'
 ]
