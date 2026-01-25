@@ -44,14 +44,14 @@ def generate_price(
     """
     Generate next price using Geometric Brownian Motion.
 
-    GBM Formula: S(t+1) = S(t) * exp((drift - 0.5*vol^2)*dt + vol*sqrt(dt)*Z)
+    GBM Formula: S(t+1) = S(t) * exp((drift - 0.5*vol**2)*dt + vol*sqrt(dt)*Z)
     Simplified for daily: S(t+1) = S(t) * (1 + daily_return)
 
     Args:
         current_price: Current stock price
         beta: Stock's beta (volatility relative to market, default 1.0)
         volatility: Base volatility parameter (default 0.02 = 2%)
-        drift: Daily drift/expected return (default 0.0003 ~ 7.5% annually)
+        drift: Daily drift/expected return (default 0.0003, approx 7.5% annually)
 
     Returns:
         New simulated price (always positive)

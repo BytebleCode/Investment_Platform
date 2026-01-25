@@ -276,7 +276,7 @@ class TestCostBasisTracking:
             buy_quantity=Decimal('10')
         )
 
-        # (100 * 1000 + 200 * 10) / 1010 = 102000 / 1010 = ~100.99
+        # (100 * 1000 + 200 * 10) / 1010 = 102000 / 1010 = approx 100.99
         expected = Decimal('102000') / Decimal('1010')
         assert abs(new_avg - expected) < Decimal('0.01')
 
@@ -421,6 +421,6 @@ class TestPortfolioMetrics:
         # Tax: 1000 * 0.37 = 370
         assert metrics['tax_liability'] == Decimal('370')
 
-        # Investment ratio: 16000 / 66000 = ~0.242
+        # Investment ratio: 16000 / 66000 = approx 0.242
         expected_ratio = Decimal('16000') / Decimal('66000')
         assert abs(metrics['investment_ratio'] - expected_ratio) < Decimal('0.001')

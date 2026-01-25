@@ -347,4 +347,4 @@ class TestPriceStatistics:
 
         # Beta 2 should have approximately 2x the volatility
         ratio = std_2 / std_1
-        assert 1.8 < ratio < 2.2, f"Volatility ratio should be ~2, got {ratio}"
+        assert 1.8 < ratio < 2.2, f"Volatility ratio should be approx 2, got {ratio}"
