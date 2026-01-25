@@ -3,28 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Investment Platform | Portfolio Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <title>Aether Markets | Illuminate the Markets</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
-            --bg-card: #1a1a2e;
-            --bg-card-hover: #1f1f35;
-            --border-color: #2a2a4a;
-            --accent-cyan: #00d4ff;
-            --accent-purple: #7b2cbf;
-            --accent-green: #00ff88;
-            --accent-red: #ff4757;
-            --accent-amber: #f59e0b;
-            --text-primary: #ffffff;
-            --text-secondary: #8892b0;
-            --text-muted: #4a5568;
-            --glow-cyan: 0 0 20px rgba(0, 212, 255, 0.3);
-            --glow-purple: 0 0 20px rgba(123, 44, 191, 0.3);
-            --glow-green: 0 0 15px rgba(0, 255, 136, 0.3);
-            --glow-red: 0 0 15px rgba(255, 71, 87, 0.3);
+            --bg-void: #000000;
+            --bg-deep: #0A0A0F;
+            --bg-nebula-start: #0A0A1F;
+            --bg-nebula-end: #1A0033;
+            --bg-card: rgba(15, 15, 25, 0.6);
+            --bg-card-solid: #0f0f19;
+            --border-glow: rgba(0, 245, 255, 0.2);
+            --border-subtle: rgba(157, 78, 221, 0.15);
+
+            --accent-cyan: #00F5FF;
+            --accent-purple: #9D4EDD;
+            --accent-green: #00FF9F;
+            --accent-red: #FF2D55;
+            --accent-amber: #FFB800;
+
+            --text-primary: #FFFFFF;
+            --text-secondary: #A0AEC0;
+            --text-muted: #4A5568;
+
+            --glow-cyan: 0 0 30px rgba(0, 245, 255, 0.4), 0 0 60px rgba(0, 245, 255, 0.2);
+            --glow-purple: 0 0 30px rgba(157, 78, 221, 0.4), 0 0 60px rgba(157, 78, 221, 0.2);
+            --glow-green: 0 0 20px rgba(0, 255, 159, 0.4);
+            --glow-red: 0 0 20px rgba(255, 45, 85, 0.4);
+
+            --glass-bg: rgba(10, 10, 20, 0.7);
+            --glass-border: rgba(0, 245, 255, 0.1);
         }
 
         * {
@@ -33,255 +42,625 @@
             padding: 0;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-primary);
+            background: var(--bg-void);
             color: var(--text-primary);
             min-height: 100vh;
             overflow-x: hidden;
         }
 
-        /* Animated background */
-        body::before {
-            content: '';
+        /* Particle Canvas Background */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        /* Nebula gradient overlay */
+        .nebula-bg {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background:
-                radial-gradient(ellipse at 20% 20%, rgba(123, 44, 191, 0.1) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, rgba(0, 212, 255, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 50% 50%, rgba(0, 212, 255, 0.03) 0%, transparent 70%);
+                radial-gradient(ellipse at 20% 0%, rgba(157, 78, 221, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(0, 245, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(ellipse at 40% 80%, rgba(157, 78, 221, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 90%, rgba(0, 245, 255, 0.05) 0%, transparent 40%),
+                linear-gradient(180deg, var(--bg-nebula-start) 0%, var(--bg-void) 50%, var(--bg-nebula-end) 100%);
             pointer-events: none;
             z-index: -1;
         }
 
-        /* Grid pattern overlay */
-        body::after {
-            content: '';
+        /* Subtle grid overlay */
+        .grid-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background-image:
-                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
-            background-size: 50px 50px;
+                linear-gradient(rgba(0, 245, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.02) 1px, transparent 1px);
+            background-size: 80px 80px;
             pointer-events: none;
             z-index: -1;
         }
 
-        /* Navigation */
+        /* ===== NAVBAR ===== */
         .navbar {
-            background: rgba(18, 18, 26, 0.8);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: var(--glass-bg);
             backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border-color);
-            padding: 15px 30px;
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            padding: 0 40px;
+            z-index: 1000;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
         .logo {
             font-family: 'Orbitron', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 700;
+            font-size: 1.8rem;
+            font-weight: 800;
             color: var(--accent-cyan);
-            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            text-shadow: var(--glow-cyan);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .tagline {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 0.75rem;
+            color: var(--text-muted);
             letter-spacing: 2px;
+            text-transform: uppercase;
+            border-left: 1px solid var(--border-glow);
+            padding-left: 15px;
         }
 
-        .logo span {
-            color: var(--text-primary);
+        .nav-center {
+            display: flex;
+            gap: 35px;
         }
 
-        .nav-status {
+        .nav-link {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            position: relative;
+            padding: 8px 0;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            transition: width 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--accent-cyan);
+            text-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        .nav-link.active {
+            color: var(--accent-cyan);
+        }
+
+        .nav-link.active::after {
+            width: 100%;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .live-ticker {
             display: flex;
             align-items: center;
             gap: 20px;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            background: var(--accent-green);
-            border-radius: 50%;
-            box-shadow: var(--glow-green);
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.offline {
-            background: var(--accent-red);
-            box-shadow: var(--glow-red);
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .nav-time {
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        /* Container */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 30px;
-        }
-
-        /* Hero Section */
-        .hero {
-            text-align: center;
-            padding: 40px 0;
-            margin-bottom: 30px;
-        }
-
-        .hero-label {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.8rem;
-            color: var(--accent-cyan);
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
-        .hero-value {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 4rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            text-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
-            margin-bottom: 15px;
-        }
-
-        .hero-change {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.2rem;
-            padding: 8px 20px;
+            padding: 8px 15px;
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 20px;
-            display: inline-block;
+            border: 1px solid var(--border-subtle);
         }
 
-        .hero-change.positive {
+        .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .ticker-symbol {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .ticker-price {
+            color: var(--text-secondary);
+        }
+
+        .ticker-change {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .ticker-change.up {
             color: var(--accent-green);
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid rgba(0, 255, 136, 0.3);
+            background: rgba(0, 255, 159, 0.1);
         }
 
-        .hero-change.negative {
+        .ticker-change.down {
             color: var(--accent-red);
-            background: rgba(255, 71, 87, 0.1);
-            border: 1px solid rgba(255, 71, 87, 0.3);
+            background: rgba(255, 45, 85, 0.1);
         }
 
-        /* Stats Row */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(26, 26, 46, 0.8) 100%);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 25px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
+        .btn-terminal {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, #00c4cc 100%);
+            color: var(--bg-void);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: var(--glow-cyan);
             transition: all 0.3s ease;
         }
 
-        .stat-card::before {
+        .btn-terminal:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 40px rgba(0, 245, 255, 0.6), 0 0 80px rgba(0, 245, 255, 0.3);
+        }
+
+        /* ===== HERO SECTION ===== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 120px 40px 80px;
+            position: relative;
+        }
+
+        .hero-content {
+            max-width: 900px;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: rgba(157, 78, 221, 0.1);
+            border: 1px solid rgba(157, 78, 221, 0.3);
+            border-radius: 30px;
+            margin-bottom: 30px;
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(157, 78, 221, 0.2); }
+            50% { box-shadow: 0 0 40px rgba(157, 78, 221, 0.4); }
+        }
+
+        .hero-badge-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .hero-badge-text {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 0.8rem;
+            color: var(--accent-purple);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .hero-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 4.5rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 25px;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 50%, var(--accent-purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            animation: title-glow 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes title-glow {
+            0% { filter: drop-shadow(0 0 30px rgba(0, 245, 255, 0.3)); }
+            100% { filter: drop-shadow(0 0 50px rgba(157, 78, 221, 0.4)); }
+        }
+
+        .hero-subtitle {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            margin-bottom: 50px;
+            letter-spacing: 1px;
+        }
+
+        .hero-subtitle span {
+            color: var(--accent-cyan);
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 15px 35px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, #00c4cc 100%);
+            color: var(--bg-void);
+            border: none;
+            box-shadow: var(--glow-cyan);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 50px rgba(0, 245, 255, 0.6);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--accent-purple);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(157, 78, 221, 0.1);
+            box-shadow: var(--glow-purple);
+            transform: translateY(-3px);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 60px;
+            margin-top: 80px;
+            justify-content: center;
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(0, 245, 255, 0.4);
+        }
+
+        .hero-stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 5px;
+        }
+
+        /* Scroll indicator */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(10px); }
+        }
+
+        .scroll-indicator span {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .scroll-arrow {
+            width: 20px;
+            height: 20px;
+            border-right: 2px solid var(--accent-cyan);
+            border-bottom: 2px solid var(--accent-cyan);
+            transform: rotate(45deg);
+            opacity: 0.5;
+        }
+
+        /* ===== MAIN CONTAINER ===== */
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 0 40px 60px;
+        }
+
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            position: relative;
+            padding-left: 20px;
+        }
+
+        .section-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple));
+            border-radius: 2px;
+        }
+
+        /* ===== LIVE MARKETS SECTION ===== */
+        .markets-section {
+            margin-bottom: 80px;
+        }
+
+        .markets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+        }
+
+        .market-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s ease;
+            cursor: pointer;
+        }
+
+        .market-card::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
             opacity: 0;
             transition: opacity 0.3s ease;
         }
 
-        .stat-card:hover {
-            transform: translateY(-5px);
+        .market-card:hover {
+            transform: translateY(-8px);
             border-color: var(--accent-cyan);
-            box-shadow: var(--glow-cyan);
+            box-shadow: 0 20px 60px rgba(0, 245, 255, 0.15);
         }
 
-        .stat-card:hover::before {
+        .market-card:hover::before {
             opacity: 1;
         }
 
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
+        .market-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
         }
 
-        .stat-value {
+        .market-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--bg-void);
+        }
+
+        .market-change {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 1.5rem;
+            font-size: 0.9rem;
             font-weight: 600;
-            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 8px;
         }
 
-        .stat-value.positive { color: var(--accent-green); }
-        .stat-value.negative { color: var(--accent-red); }
-        .stat-value.cyan { color: var(--accent-cyan); }
-        .stat-value.purple { color: var(--accent-purple); }
+        .market-change.positive {
+            color: var(--accent-green);
+            background: rgba(0, 255, 159, 0.1);
+            border: 1px solid rgba(0, 255, 159, 0.2);
+        }
 
-        /* Main Grid */
-        .main-grid {
+        .market-change.negative {
+            color: var(--accent-red);
+            background: rgba(255, 45, 85, 0.1);
+            border: 1px solid rgba(255, 45, 85, 0.2);
+        }
+
+        .market-name {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .market-symbol {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+        }
+
+        .market-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
+            margin: 15px 0;
+        }
+
+        .market-sparkline {
+            height: 50px;
+            margin-top: 15px;
+        }
+
+        /* ===== DASHBOARD SECTION ===== */
+        .dashboard-section {
+            margin-bottom: 80px;
+        }
+
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 2fr 1fr;
             gap: 30px;
-            margin-bottom: 30px;
         }
 
         @media (max-width: 1200px) {
-            .main-grid {
+            .dashboard-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        /* Cards */
-        .card {
-            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(26, 26, 46, 0.9) 100%);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 25px;
-            backdrop-filter: blur(10px);
+        /* Glass Card */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.02) 0%, transparent 50%);
+            pointer-events: none;
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-subtle);
         }
 
         .card-title {
             font-family: 'Orbitron', sans-serif;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             color: var(--accent-cyan);
-            letter-spacing: 1px;
+            letter-spacing: 2px;
             text-transform: uppercase;
         }
 
@@ -290,127 +669,122 @@
             gap: 10px;
         }
 
-        /* Buttons */
-        .btn {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 500;
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent-cyan) 0%, #00a8cc 100%);
-            color: var(--bg-primary);
-            box-shadow: var(--glow-cyan);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: var(--accent-purple);
-            border: 1px solid var(--accent-purple);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(123, 44, 191, 0.1);
-            box-shadow: var(--glow-purple);
-        }
-
-        .btn-danger {
-            background: transparent;
-            color: var(--accent-red);
-            border: 1px solid var(--accent-red);
-        }
-
-        .btn-danger:hover {
-            background: rgba(255, 71, 87, 0.1);
-            box-shadow: var(--glow-red);
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.75rem;
-        }
-
-        /* Tables */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .data-table th {
+        /* Period Buttons */
+        .period-btn {
             font-family: 'Orbitron', sans-serif;
             font-size: 0.7rem;
             font-weight: 500;
+            padding: 8px 14px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
+        }
+
+        .period-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .period-btn.active {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-void);
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            height: 350px;
+            position: relative;
+        }
+
+        .chart-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.1);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 1px;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 10px;
         }
 
-        .data-table td {
+        .stat-value {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            padding: 15px 12px;
-            border-bottom: 1px solid rgba(42, 42, 74, 0.5);
-            color: var(--text-secondary);
-        }
-
-        .data-table tr:hover td {
-            background: rgba(0, 212, 255, 0.05);
-            color: var(--text-primary);
-        }
-
-        .data-table .symbol {
-            color: var(--text-primary);
+            font-size: 1.6rem;
             font-weight: 600;
         }
 
-        .data-table .buy { color: var(--accent-green); }
-        .data-table .sell { color: var(--accent-red); }
+        .stat-value.cyan { color: var(--accent-cyan); text-shadow: 0 0 15px rgba(0, 245, 255, 0.4); }
+        .stat-value.purple { color: var(--accent-purple); text-shadow: 0 0 15px rgba(157, 78, 221, 0.4); }
+        .stat-value.green { color: var(--accent-green); }
+        .stat-value.red { color: var(--accent-red); }
 
-        /* Form Inputs */
+        /* ===== TRADE PANEL ===== */
+        .trade-panel {
+            display: grid;
+            gap: 25px;
+        }
+
         .form-group {
-            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .form-label {
-            display: block;
             font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
         }
 
         .form-input, .form-select {
             width: 100%;
-            padding: 12px 15px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            padding: 14px 18px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
             color: var(--text-primary);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             transition: all 0.3s ease;
         }
 
         .form-input:focus, .form-select:focus {
             outline: none;
             border-color: var(--accent-cyan);
-            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
         }
 
         .form-input::placeholder {
@@ -418,29 +792,131 @@
         }
 
         .form-select option {
-            background: var(--bg-secondary);
+            background: var(--bg-deep);
             color: var(--text-primary);
         }
 
-        /* Strategy Cards */
+        .btn-trade {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, #00c4cc 100%);
+            color: var(--bg-void);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: var(--glow-cyan);
+            transition: all 0.3s ease;
+        }
+
+        .btn-trade:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 40px rgba(0, 245, 255, 0.5);
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+            box-shadow: none;
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 45, 85, 0.1);
+            box-shadow: var(--glow-red);
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .quick-actions .btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 0.75rem;
+        }
+
+        /* ===== TABLES ===== */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .data-table td {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            padding: 18px 15px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .data-table tr {
+            transition: all 0.3s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(0, 245, 255, 0.03);
+        }
+
+        .data-table tbody tr:hover td {
+            color: var(--text-primary);
+        }
+
+        .data-table .symbol {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .data-table .buy {
+            color: var(--accent-green);
+        }
+
+        .data-table .sell {
+            color: var(--accent-red);
+        }
+
+        /* ===== STRATEGIES ===== */
+        .strategies-section {
+            margin-bottom: 80px;
+        }
+
         .strategy-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
         }
 
         .strategy-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 25px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.4s ease;
             position: relative;
             overflow: hidden;
         }
 
-        .strategy-card::after {
+        .strategy-card::before {
             content: '';
             position: absolute;
             bottom: 0;
@@ -453,42 +929,41 @@
         }
 
         .strategy-card:hover {
+            transform: translateY(-5px);
             border-color: var(--strategy-color, var(--accent-cyan));
-            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
         }
 
-        .strategy-card:hover::after {
+        .strategy-card:hover::before,
+        .strategy-card.active::before {
             transform: scaleX(1);
         }
 
         .strategy-card.active {
             border-color: var(--strategy-color, var(--accent-cyan));
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
-        }
-
-        .strategy-card.active::after {
-            transform: scaleX(1);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.15);
         }
 
         .strategy-name {
             font-family: 'Orbitron', sans-serif;
-            font-size: 0.9rem;
+            font-size: 1rem;
             font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
         }
 
         .strategy-risk {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
         }
 
         .strategy-metrics {
             display: flex;
             justify-content: space-between;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid var(--border-color);
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
         }
 
         .strategy-metric {
@@ -497,7 +972,8 @@
 
         .strategy-metric-value {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
+            font-size: 0.95rem;
+            font-weight: 600;
             color: var(--accent-cyan);
         }
 
@@ -505,133 +981,20 @@
             font-size: 0.65rem;
             color: var(--text-muted);
             text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
         }
 
-        /* Messages */
-        .message {
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.success {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            color: var(--accent-green);
-        }
-
-        .message.error {
-            background: rgba(255, 71, 87, 0.1);
-            border: 1px solid rgba(255, 71, 87, 0.3);
-            color: var(--accent-red);
-        }
-
-        /* Loading States */
-        .loading {
-            color: var(--text-muted);
-            font-style: italic;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .loading::before {
-            content: '';
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border-color);
-            border-top-color: var(--accent-cyan);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-muted);
-        }
-
-        .empty-state-icon {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            opacity: 0.3;
-        }
-
-        /* Chart Container */
-        .chart-container {
-            height: 300px;
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            margin-bottom: 20px;
-            padding: 15px;
-            position: relative;
-        }
-
-        .chart-loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: var(--text-muted);
-            text-align: center;
-        }
-
-        /* Period Selector */
-        .period-btn {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.75rem;
-            font-family: 'Orbitron', sans-serif;
-        }
-
-        .period-btn:hover {
-            border-color: var(--accent-cyan);
-            color: var(--accent-cyan);
-        }
-
-        .period-btn.active {
-            background: var(--accent-cyan);
-            border-color: var(--accent-cyan);
-            color: var(--bg-primary);
-            box-shadow: var(--glow-cyan);
-        }
-
-        /* Backtest Panel */
-        .backtest-panel {
-            margin-top: 30px;
+        /* ===== BACKTEST ===== */
+        .backtest-section {
+            margin-bottom: 80px;
         }
 
         .backtest-config {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
+            gap: 25px;
+            margin-bottom: 30px;
         }
 
         .backtest-results {
@@ -644,24 +1007,29 @@
 
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
         .metric-box {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
             text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .metric-box:hover {
+            border-color: var(--accent-purple);
         }
 
         .metric-box .value {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 1.3rem;
+            font-size: 1.5rem;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
 
         .metric-box .label {
@@ -672,8 +1040,269 @@
         }
 
         .backtest-chart-container {
-            height: 250px;
-            margin-top: 20px;
+            height: 280px;
+        }
+
+        /* ===== AI INSIGHTS ===== */
+        .insights-section {
+            margin-bottom: 80px;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        .insight-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .insight-card:hover {
+            border-color: var(--accent-purple);
+            box-shadow: 0 10px 40px rgba(157, 78, 221, 0.1);
+        }
+
+        .insight-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .insight-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .insight-title {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .insight-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .insight-content {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .insight-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(0, 245, 255, 0.1);
+            border: 1px solid rgba(0, 245, 255, 0.2);
+            border-radius: 20px;
+            font-size: 0.7rem;
+            color: var(--accent-cyan);
+            margin-top: 15px;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--glass-border);
+            padding: 60px 40px 30px;
+            margin-top: 80px;
+        }
+
+        .footer-content {
+            max-width: 1500px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr repeat(3, 1fr);
+            gap: 60px;
+        }
+
+        @media (max-width: 900px) {
+            .footer-content {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+        }
+
+        .footer-brand {
+            max-width: 300px;
+        }
+
+        .footer-logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(0, 245, 255, 0.4);
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+        }
+
+        .footer-tagline {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .footer-column h4 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 12px;
+        }
+
+        .footer-links a {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent-cyan);
+        }
+
+        .footer-social {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .social-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .social-icon:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
+        }
+
+        .footer-bottom {
+            max-width: 1500px;
+            margin: 40px auto 0;
+            padding-top: 30px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-copyright {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* ===== MESSAGES ===== */
+        .message {
+            position: fixed;
+            top: 90px;
+            right: 40px;
+            padding: 18px 25px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+            backdrop-filter: blur(20px);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .message.success {
+            background: rgba(0, 255, 159, 0.1);
+            border: 1px solid rgba(0, 255, 159, 0.3);
+            color: var(--accent-green);
+        }
+
+        .message.error {
+            background: rgba(255, 45, 85, 0.1);
+            border: 1px solid rgba(255, 45, 85, 0.3);
+            color: var(--accent-red);
+        }
+
+        /* ===== LOADING ===== */
+        .loading {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+        }
+
+        .loading::before {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.3;
         }
 
         /* Scrollbar */
@@ -683,11 +1312,11 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
+            background: var(--bg-deep);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
+            background: var(--border-subtle);
             border-radius: 4px;
         }
 
@@ -695,82 +1324,170 @@
             background: var(--accent-cyan);
         }
 
-        /* Utility */
-        .text-center { text-align: center; }
-        .mb-20 { margin-bottom: 20px; }
-        .mt-20 { margin-top: 20px; }
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0 20px;
+            }
 
-        /* Hexagon decoration */
-        .hex-decoration {
-            position: fixed;
-            width: 100px;
-            height: 100px;
-            border: 1px solid rgba(0, 212, 255, 0.1);
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            pointer-events: none;
-            z-index: -1;
+            .nav-center {
+                display: none;
+            }
+
+            .live-ticker {
+                display: none;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .hero-stats {
+                flex-direction: column;
+                gap: 30px;
+            }
+
+            .container {
+                padding: 0 20px 40px;
+            }
         }
-
-        .hex-1 { top: 10%; right: 5%; transform: rotate(15deg); }
-        .hex-2 { bottom: 20%; left: 3%; transform: rotate(-10deg); width: 150px; height: 150px; }
-        .hex-3 { top: 40%; right: 10%; transform: rotate(30deg); width: 80px; height: 80px; }
     </style>
 </head>
 <body>
-    <!-- Decorative hexagons -->
-    <div class="hex-decoration hex-1"></div>
-    <div class="hex-decoration hex-2"></div>
-    <div class="hex-decoration hex-3"></div>
+    <!-- Particle Canvas -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Background layers -->
+    <div class="nebula-bg"></div>
+    <div class="grid-overlay"></div>
 
     <!-- Navigation -->
     <nav class="navbar">
-        <div class="logo">NEXUS<span>INVEST</span></div>
-        <div class="nav-status">
-            <div class="status-dot" id="status-indicator"></div>
-            <span id="status-text" style="color: var(--text-secondary); font-size: 0.85rem;">Connecting...</span>
-            <span class="nav-time" id="current-time"></span>
+        <div class="nav-left">
+            <div class="logo">Aether</div>
+            <div class="tagline">Markets Reimagined</div>
+        </div>
+        <div class="nav-center">
+            <a href="#markets" class="nav-link active">Markets</a>
+            <a href="#portfolio" class="nav-link">Portfolio</a>
+            <a href="#trade" class="nav-link">Trade</a>
+            <a href="#insights" class="nav-link">Insights</a>
+            <a href="#backtest" class="nav-link">Backtest</a>
+        </div>
+        <div class="nav-right">
+            <div class="live-ticker" id="live-ticker">
+                <div class="ticker-item">
+                    <span class="ticker-symbol">BTC</span>
+                    <span class="ticker-price" id="ticker-btc">--</span>
+                    <span class="ticker-change up" id="ticker-btc-change">--</span>
+                </div>
+                <div class="ticker-item">
+                    <span class="ticker-symbol">ETH</span>
+                    <span class="ticker-price" id="ticker-eth">--</span>
+                    <span class="ticker-change up" id="ticker-eth-change">--</span>
+                </div>
+            </div>
+            <button class="btn-terminal" onclick="scrollToSection('trade')">Launch Terminal</button>
         </div>
     </nav>
 
-    <div class="container">
-        <!-- Message Area -->
-        <div id="message"></div>
+    <!-- Message Container -->
+    <div id="message"></div>
 
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-label">Total Portfolio Value</div>
-            <div class="hero-value" id="hero-total">$0.00</div>
-            <div class="hero-change positive" id="hero-change">+0.00%</div>
-        </section>
-
-        <!-- Stats Row -->
-        <div class="stats-row" id="stats-row">
-            <div class="stat-card">
-                <div class="stat-label">Available Cash</div>
-                <div class="stat-value cyan" id="stat-cash">$0.00</div>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <div class="hero-badge-dot"></div>
+                <span class="hero-badge-text">AI-Powered Analytics</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Holdings Value</div>
-                <div class="stat-value" id="stat-holdings">$0.00</div>
+            <h1 class="hero-title">Illuminate the Markets</h1>
+            <p class="hero-subtitle">Real-time insights. <span>Mesmerizing analytics.</span> Trade the future.</p>
+            <div class="hero-cta">
+                <a href="#portfolio" class="btn btn-primary">Enter Dashboard</a>
+                <a href="#backtest" class="btn btn-secondary">Run Backtest</a>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Realized Gains</div>
-                <div class="stat-value" id="stat-gains">$0.00</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Active Strategy</div>
-                <div class="stat-value purple" id="stat-strategy">-</div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <div class="hero-stat-value" id="hero-total">$0</div>
+                    <div class="hero-stat-label">Portfolio Value</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value" id="hero-change">0%</div>
+                    <div class="hero-stat-label">Total Return</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value" id="hero-strategy">-</div>
+                    <div class="hero-stat-label">Active Strategy</div>
+                </div>
             </div>
         </div>
+        <div class="scroll-indicator">
+            <span>Explore</span>
+            <div class="scroll-arrow"></div>
+        </div>
+    </section>
 
-        <!-- Main Grid -->
-        <div class="main-grid">
-            <!-- Left Column -->
-            <div class="left-column">
-                <!-- Performance Chart -->
-                <div class="card mb-20">
+    <div class="container">
+        <!-- Live Markets Section -->
+        <section class="markets-section" id="markets">
+            <div class="section-header">
+                <h2 class="section-title">Live Markets</h2>
+            </div>
+            <div class="markets-grid" id="markets-grid">
+                <div class="market-card">
+                    <div class="market-header">
+                        <div class="market-icon">BTC</div>
+                        <div class="market-change positive" id="btc-change">+0.00%</div>
+                    </div>
+                    <div class="market-name">Bitcoin</div>
+                    <div class="market-symbol">BTC/USD</div>
+                    <div class="market-price" id="btc-price">$--</div>
+                    <canvas class="market-sparkline" id="btc-spark"></canvas>
+                </div>
+                <div class="market-card">
+                    <div class="market-header">
+                        <div class="market-icon">ETH</div>
+                        <div class="market-change positive" id="eth-change">+0.00%</div>
+                    </div>
+                    <div class="market-name">Ethereum</div>
+                    <div class="market-symbol">ETH/USD</div>
+                    <div class="market-price" id="eth-price">$--</div>
+                    <canvas class="market-sparkline" id="eth-spark"></canvas>
+                </div>
+                <div class="market-card">
+                    <div class="market-header">
+                        <div class="market-icon">SPX</div>
+                        <div class="market-change positive" id="spx-change">+0.00%</div>
+                    </div>
+                    <div class="market-name">S&P 500</div>
+                    <div class="market-symbol">SPX</div>
+                    <div class="market-price" id="spx-price">$--</div>
+                    <canvas class="market-sparkline" id="spx-spark"></canvas>
+                </div>
+                <div class="market-card">
+                    <div class="market-header">
+                        <div class="market-icon">AAPL</div>
+                        <div class="market-change positive" id="aapl-change">+0.00%</div>
+                    </div>
+                    <div class="market-name">Apple Inc</div>
+                    <div class="market-symbol">AAPL</div>
+                    <div class="market-price" id="aapl-price">$--</div>
+                    <canvas class="market-sparkline" id="aapl-spark"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Section -->
+        <section class="dashboard-section" id="portfolio">
+            <div class="section-header">
+                <h2 class="section-title">Portfolio Dashboard</h2>
+            </div>
+            <div class="dashboard-grid">
+                <!-- Main Chart -->
+                <div class="glass-card">
                     <div class="card-header">
-                        <h2 class="card-title">Performance</h2>
+                        <h3 class="card-title">Performance</h3>
                         <div class="card-actions" id="period-buttons">
                             <button class="period-btn" data-period="1d">1D</button>
                             <button class="period-btn" data-period="1w">1W</button>
@@ -787,183 +1504,434 @@
                     </div>
                 </div>
 
-                <!-- Holdings -->
-                <div class="card mb-20">
+                <!-- Stats Panel -->
+                <div class="glass-card">
                     <div class="card-header">
-                        <h2 class="card-title">Holdings</h2>
+                        <h3 class="card-title">Overview</h3>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Available Cash</div>
+                            <div class="stat-value cyan" id="stat-cash">$0.00</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Holdings Value</div>
+                            <div class="stat-value purple" id="stat-holdings">$0.00</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Realized Gains</div>
+                            <div class="stat-value green" id="stat-gains">$0.00</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Active Strategy</div>
+                            <div class="stat-value" id="stat-strategy" style="color: var(--accent-amber);">-</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 25px;">
+                        <div class="card-header" style="margin-bottom: 15px;">
+                            <h3 class="card-title">System Status</h3>
+                        </div>
+                        <div id="system-status">
+                            <div class="loading">Checking status...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Holdings & Trades -->
+        <section class="dashboard-section">
+            <div class="dashboard-grid">
+                <div class="glass-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Holdings</h3>
                     </div>
                     <div id="holdings-list">
                         <div class="loading">Loading holdings...</div>
                     </div>
                 </div>
 
-                <!-- Recent Trades -->
-                <div class="card">
+                <div class="glass-card" id="trade">
                     <div class="card-header">
-                        <h2 class="card-title">Recent Trades</h2>
+                        <h3 class="card-title">Execute Trade</h3>
                     </div>
-                    <div id="trades-list">
-                        <div class="loading">Loading trades...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column -->
-            <div class="right-column">
-                <!-- Quick Actions -->
-                <div class="card mb-20">
-                    <div class="card-header">
-                        <h2 class="card-title">Quick Actions</h2>
-                    </div>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="quick-actions">
                         <button class="btn btn-primary" onclick="initPortfolio()">Initialize</button>
                         <button class="btn btn-danger" onclick="resetPortfolio()">Reset</button>
                     </div>
-                </div>
-
-                <!-- Execute Trade -->
-                <div class="card mb-20">
-                    <div class="card-header">
-                        <h2 class="card-title">Execute Trade</h2>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Symbol</label>
-                        <input type="text" class="form-input" id="trade-symbol" placeholder="AAPL">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Type</label>
-                        <select class="form-select" id="trade-type">
-                            <option value="buy">BUY</option>
-                            <option value="sell">SELL</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Quantity</label>
-                        <input type="number" class="form-input" id="trade-quantity" placeholder="10">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Price</label>
-                        <input type="number" class="form-input" id="trade-price" placeholder="150.00" step="0.01">
-                    </div>
-                    <button class="btn btn-primary" style="width: 100%;" onclick="executeTrade()">Execute Trade</button>
-                </div>
-
-                <!-- System Status -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">System Status</h2>
-                    </div>
-                    <div id="system-status">
-                        <div class="loading">Checking status...</div>
+                    <div class="trade-panel">
+                        <div class="form-group">
+                            <label class="form-label">Symbol</label>
+                            <input type="text" class="form-input" id="trade-symbol" placeholder="AAPL">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Type</label>
+                            <select class="form-select" id="trade-type">
+                                <option value="buy">BUY</option>
+                                <option value="sell">SELL</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-input" id="trade-quantity" placeholder="10">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Price</label>
+                            <input type="number" class="form-input" id="trade-price" placeholder="150.00" step="0.01">
+                        </div>
+                        <button class="btn-trade" onclick="executeTrade()">Execute Trade</button>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
+
+        <!-- Recent Trades -->
+        <section class="dashboard-section">
+            <div class="glass-card">
+                <div class="card-header">
+                    <h3 class="card-title">Recent Trades</h3>
+                </div>
+                <div id="trades-list">
+                    <div class="loading">Loading trades...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Insights Section -->
+        <section class="insights-section" id="insights">
+            <div class="section-header">
+                <h2 class="section-title">AI Insights</h2>
+            </div>
+            <div class="insights-grid">
+                <div class="insight-card">
+                    <div class="insight-header">
+                        <div class="insight-icon">&#x1F4C8;</div>
+                        <div>
+                            <div class="insight-title">Market Sentiment</div>
+                            <div class="insight-subtitle">Real-time analysis</div>
+                        </div>
+                    </div>
+                    <div class="insight-content">
+                        Current market conditions show moderate bullish sentiment across major indices. Tech sector leading with strong momentum signals.
+                    </div>
+                    <span class="insight-tag">Updated 2 min ago</span>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-header">
+                        <div class="insight-icon">&#x1F50D;</div>
+                        <div>
+                            <div class="insight-title">Pattern Detection</div>
+                            <div class="insight-subtitle">Technical analysis</div>
+                        </div>
+                    </div>
+                    <div class="insight-content">
+                        Multiple assets showing consolidation patterns. Watch for breakout opportunities in the next trading session.
+                    </div>
+                    <span class="insight-tag">3 patterns detected</span>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-header">
+                        <div class="insight-icon">&#x26A1;</div>
+                        <div>
+                            <div class="insight-title">Risk Assessment</div>
+                            <div class="insight-subtitle">Portfolio health</div>
+                        </div>
+                    </div>
+                    <div class="insight-content">
+                        Portfolio diversification is within optimal parameters. Consider rebalancing if tech allocation exceeds 40%.
+                    </div>
+                    <span class="insight-tag">Low risk</span>
+                </div>
+            </div>
+        </section>
 
         <!-- Strategies Section -->
-        <div class="card mb-20">
-            <div class="card-header">
-                <h2 class="card-title">Investment Strategies</h2>
+        <section class="strategies-section">
+            <div class="section-header">
+                <h2 class="section-title">Investment Strategies</h2>
             </div>
             <div class="strategy-grid" id="strategies-list">
                 <div class="loading">Loading strategies...</div>
             </div>
-        </div>
+        </section>
 
-        <!-- Backtesting Panel -->
-        <div class="card backtest-panel">
-            <div class="card-header">
-                <h2 class="card-title">Strategy Backtester</h2>
+        <!-- Backtesting Section -->
+        <section class="backtest-section" id="backtest">
+            <div class="glass-card">
+                <div class="card-header">
+                    <h3 class="card-title">Strategy Backtester</h3>
+                </div>
+                <div class="backtest-config">
+                    <div class="form-group">
+                        <label class="form-label">Strategy</label>
+                        <select class="form-select" id="backtest-strategy">
+                            <option value="balanced">Balanced</option>
+                            <option value="conservative">Conservative</option>
+                            <option value="growth">Growth</option>
+                            <option value="value">Value</option>
+                            <option value="aggressive">Aggressive</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Period</label>
+                        <select class="form-select" id="backtest-period">
+                            <option value="1m">1 Month</option>
+                            <option value="3m">3 Months</option>
+                            <option value="6m">6 Months</option>
+                            <option value="1y" selected>1 Year</option>
+                            <option value="2y">2 Years</option>
+                            <option value="5y">5 Years</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Initial Capital</label>
+                        <input type="number" class="form-input" id="backtest-capital" value="100000" min="1000" step="1000">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button class="btn-trade" style="width: 100%;" onclick="runBacktest()">Run Backtest</button>
+                    </div>
+                </div>
+
+                <div class="backtest-results" id="backtest-results">
+                    <div style="margin-bottom: 20px; padding: 12px 20px; background: rgba(0, 0, 0, 0.3); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Data Source:</span>
+                        <span id="bt-data-source" style="color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">-</span>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-box">
+                            <div class="value" id="bt-return" style="color: var(--accent-green);">+0.00%</div>
+                            <div class="label">Total Return</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="value" id="bt-annual" style="color: var(--accent-cyan);">0.00%</div>
+                            <div class="label">Annualized</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="value" id="bt-drawdown" style="color: var(--accent-red);">0.00%</div>
+                            <div class="label">Max Drawdown</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="value" id="bt-sharpe" style="color: var(--accent-purple);">0.00</div>
+                            <div class="label">Sharpe Ratio</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="value" id="bt-trades" style="color: var(--text-primary);">0</div>
+                            <div class="label">Total Trades</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="value" id="bt-winrate" style="color: var(--accent-amber);">0%</div>
+                            <div class="label">Win Rate</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin: 30px 0 20px; padding-top: 20px; border-top: 1px solid var(--border-subtle);">
+                        <h4 style="font-family: 'Orbitron', sans-serif; font-size: 0.85rem; color: var(--accent-cyan); letter-spacing: 1px;">Equity Curve</h4>
+                        <div style="display: flex; gap: 20px; font-size: 0.8rem;">
+                            <span>Start: <span id="bt-start-value" style="color: var(--accent-cyan);">$0</span></span>
+                            <span>End: <span id="bt-end-value" style="color: var(--accent-green);">$0</span></span>
+                        </div>
+                    </div>
+                    <div class="backtest-chart-container">
+                        <canvas id="backtestChart"></canvas>
+                    </div>
+                </div>
             </div>
-
-            <div class="backtest-config">
-                <div class="form-group">
-                    <label class="form-label">Strategy</label>
-                    <select class="form-select" id="backtest-strategy">
-                        <option value="balanced">Balanced</option>
-                        <option value="conservative">Conservative</option>
-                        <option value="growth">Growth</option>
-                        <option value="value">Value</option>
-                        <option value="aggressive">Aggressive</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Period</label>
-                    <select class="form-select" id="backtest-period">
-                        <option value="1m">1 Month</option>
-                        <option value="3m">3 Months</option>
-                        <option value="6m">6 Months</option>
-                        <option value="1y" selected>1 Year</option>
-                        <option value="2y">2 Years</option>
-                        <option value="5y">5 Years</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Initial Capital</label>
-                    <input type="number" class="form-input" id="backtest-capital" value="100000" min="1000" step="1000">
-                </div>
-                <div class="form-group" style="display: flex; align-items: flex-end;">
-                    <button class="btn btn-primary" style="width: 100%;" onclick="runBacktest()">Run Backtest</button>
-                </div>
-            </div>
-
-            <div class="backtest-results" id="backtest-results">
-                <div class="metrics-grid">
-                    <div class="metric-box">
-                        <div class="value" id="bt-return" style="color: var(--accent-green);">+0.00%</div>
-                        <div class="label">Total Return</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="value" id="bt-annual" style="color: var(--accent-cyan);">0.00%</div>
-                        <div class="label">Annualized</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="value" id="bt-drawdown" style="color: var(--accent-red);">0.00%</div>
-                        <div class="label">Max Drawdown</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="value" id="bt-sharpe" style="color: var(--accent-purple);">0.00</div>
-                        <div class="label">Sharpe Ratio</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="value" id="bt-trades" style="color: var(--text-primary);">0</div>
-                        <div class="label">Total Trades</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="value" id="bt-winrate" style="color: var(--accent-amber);">0%</div>
-                        <div class="label">Win Rate</div>
-                    </div>
-                </div>
-
-                <div class="card-header" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); border-bottom: none;">
-                    <h3 class="card-title" style="font-size: 0.85rem;">Equity Curve</h3>
-                    <div style="display: flex; gap: 15px; font-size: 0.75rem;">
-                        <span>Start: <span id="bt-start-value" style="color: var(--accent-cyan);">$0</span></span>
-                        <span>End: <span id="bt-end-value" style="color: var(--accent-green);">$0</span></span>
-                    </div>
-                </div>
-                <div class="backtest-chart-container">
-                    <canvas id="backtestChart"></canvas>
-                </div>
-            </div>
-        </div>
+        </section>
     </div>
 
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <div class="footer-logo">AETHER</div>
+                <p class="footer-tagline">
+                    Illuminating the markets with AI-powered insights and mesmerizing analytics.
+                    Trade the future with confidence.
+                </p>
+                <div class="footer-social">
+                    <a href="#" class="social-icon">&#x1F426;</a>
+                    <a href="#" class="social-icon">&#x1F4E7;</a>
+                    <a href="#" class="social-icon">&#x1F310;</a>
+                </div>
+            </div>
+            <div class="footer-column">
+                <h4>Platform</h4>
+                <ul class="footer-links">
+                    <li><a href="#markets">Markets</a></li>
+                    <li><a href="#portfolio">Portfolio</a></li>
+                    <li><a href="#trade">Trade</a></li>
+                    <li><a href="#backtest">Backtest</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Resources</h4>
+                <ul class="footer-links">
+                    <li><a href="#">Documentation</a></li>
+                    <li><a href="#">API Reference</a></li>
+                    <li><a href="#">Tutorials</a></li>
+                    <li><a href="#">Blog</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Company</h4>
+                <ul class="footer-links">
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Careers</a></li>
+                    <li><a href="#">Contact</a></li>
+                    <li><a href="#">Legal</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="footer-copyright">
+                &copy; 2025 Aether Markets. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
     <script>
+        // ===== PARTICLE SYSTEM =====
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        const particleCount = 80;
+        const connectionDistance = 150;
+        const mouseRadius = 120;
+        let mouse = { x: null, y: null };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.radius = Math.random() * 2 + 1;
+                this.opacity = Math.random() * 0.5 + 0.2;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+                // Mouse interaction
+                if (mouse.x && mouse.y) {
+                    const dx = mouse.x - this.x;
+                    const dy = mouse.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < mouseRadius) {
+                        const force = (mouseRadius - dist) / mouseRadius;
+                        this.vx -= (dx / dist) * force * 0.02;
+                        this.vy -= (dy / dist) * force * 0.02;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 245, 255, ${this.opacity})`;
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function connectParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < connectionDistance) {
+                        const opacity = (1 - dist / connectionDistance) * 0.15;
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(0, 245, 255, ${opacity})`;
+                        ctx.lineWidth = 1;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let particle of particles) {
+                particle.update();
+                particle.draw();
+            }
+
+            connectParticles();
+            requestAnimationFrame(animateParticles);
+        }
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        window.addEventListener('mouseout', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        resizeCanvas();
+        initParticles();
+        animateParticles();
+
+        // ===== NAVIGATION =====
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Nav link active state
+        const navLinks = document.querySelectorAll('.nav-link');
+        window.addEventListener('scroll', () => {
+            const scrollPos = window.scrollY + 100;
+
+            document.querySelectorAll('section[id]').forEach(section => {
+                const top = section.offsetTop;
+                const height = section.offsetHeight;
+                const id = section.getAttribute('id');
+
+                if (scrollPos >= top && scrollPos < top + height) {
+                    navLinks.forEach(link => {
+                        link.classList.remove('active');
+                        if (link.getAttribute('href') === '#' + id) {
+                            link.classList.add('active');
+                        }
+                    });
+                }
+            });
+        });
+
+        // ===== API & DATA =====
         const API_BASE = '/api';
         let currentStrategy = 'balanced';
         let performanceChart = null;
         let backtestChart = null;
         let currentPeriod = '1m';
-
-        // Update time display
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('current-time').textContent =
-                now.toLocaleTimeString('en-US', { hour12: false });
-        }
-        setInterval(updateTime, 1000);
-        updateTime();
 
         function showMessage(text, isError = false) {
             const el = document.getElementById('message');
@@ -972,6 +1940,17 @@
         }
 
         function formatMoney(amount) {
+            const num = parseFloat(amount) || 0;
+            if (num >= 1000000) {
+                return '$' + (num / 1000000).toFixed(2) + 'M';
+            }
+            if (num >= 1000) {
+                return '$' + (num / 1000).toFixed(1) + 'K';
+            }
+            return '$' + num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        function formatMoneyFull(amount) {
             const num = parseFloat(amount) || 0;
             return '$' + num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
@@ -989,9 +1968,9 @@
             }
         }
 
-        // Chart.js default configuration
-        Chart.defaults.color = '#8892b0';
-        Chart.defaults.borderColor = 'rgba(42, 42, 74, 0.5)';
+        // Chart.js configuration
+        Chart.defaults.color = '#A0AEC0';
+        Chart.defaults.borderColor = 'rgba(157, 78, 221, 0.1)';
         Chart.defaults.font.family = "'Inter', sans-serif";
 
         // Performance Chart
@@ -1004,7 +1983,6 @@
             loadingEl.style.display = 'none';
 
             if (data.error || !data.equity_curve || data.equity_curve.length === 0) {
-                // Show empty state
                 if (performanceChart) {
                     performanceChart.destroy();
                     performanceChart = null;
@@ -1014,7 +1992,6 @@
 
             const ctx = document.getElementById('performanceChart').getContext('2d');
 
-            // Prepare data
             const labels = data.equity_curve.map(p => {
                 const d = new Date(p.date);
                 return period === '1d' ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) :
@@ -1023,16 +2000,11 @@
             const values = data.equity_curve.map(p => p.value);
             const cashValues = data.equity_curve.map(p => p.cash);
 
-            // Trade markers
-            const tradePoints = data.trades.map(t => {
-                const idx = data.equity_curve.findIndex(p => p.date === t.date);
-                return idx >= 0 ? { x: idx, y: t.value, type: t.type, symbol: t.symbol } : null;
-            }).filter(p => p);
-
-            // Create gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, 280);
-            gradient.addColorStop(0, 'rgba(0, 212, 255, 0.3)');
-            gradient.addColorStop(1, 'rgba(0, 212, 255, 0)');
+            // Gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 320);
+            gradient.addColorStop(0, 'rgba(0, 245, 255, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(157, 78, 221, 0.1)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
             if (performanceChart) {
                 performanceChart.destroy();
@@ -1046,21 +2018,21 @@
                         {
                             label: 'Portfolio Value',
                             data: values,
-                            borderColor: '#00d4ff',
+                            borderColor: '#00F5FF',
                             backgroundColor: gradient,
                             borderWidth: 2,
                             fill: true,
                             tension: 0.4,
                             pointRadius: 0,
                             pointHoverRadius: 6,
-                            pointHoverBackgroundColor: '#00d4ff',
+                            pointHoverBackgroundColor: '#00F5FF',
                             pointHoverBorderColor: '#fff',
                             pointHoverBorderWidth: 2
                         },
                         {
                             label: 'Cash',
                             data: cashValues,
-                            borderColor: '#7b2cbf',
+                            borderColor: '#9D4EDD',
                             borderWidth: 1.5,
                             borderDash: [5, 5],
                             fill: false,
@@ -1083,57 +2055,45 @@
                             align: 'end',
                             labels: {
                                 boxWidth: 12,
-                                padding: 15,
+                                padding: 20,
                                 usePointStyle: true
                             }
                         },
                         tooltip: {
-                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
-                            titleColor: '#00d4ff',
+                            backgroundColor: 'rgba(10, 10, 20, 0.95)',
+                            titleColor: '#00F5FF',
                             bodyColor: '#ffffff',
-                            borderColor: '#2a2a4a',
+                            borderColor: 'rgba(0, 245, 255, 0.2)',
                             borderWidth: 1,
-                            padding: 12,
+                            padding: 15,
                             displayColors: true,
                             callbacks: {
                                 label: function(context) {
-                                    return context.dataset.label + ': ' + formatMoney(context.raw);
+                                    return context.dataset.label + ': ' + formatMoneyFull(context.raw);
                                 }
                             }
                         }
                     },
                     scales: {
                         x: {
-                            grid: {
-                                display: false
-                            },
-                            ticks: {
-                                maxTicksLimit: 8,
-                                font: { size: 10 }
-                            }
+                            grid: { display: false },
+                            ticks: { maxTicksLimit: 8, font: { size: 11 } }
                         },
                         y: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
-                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
                             ticks: {
                                 callback: function(value) {
                                     return '$' + (value / 1000).toFixed(0) + 'k';
                                 },
-                                font: { size: 10 }
+                                font: { size: 11 }
                             }
                         }
                     }
                 }
             });
-
-            // Add trade markers as annotations if there are trades
-            if (tradePoints.length > 0) {
-                // Could add scatter points for trades here
-            }
         }
 
-        // Period button handlers
+        // Period buttons
         document.getElementById('period-buttons').addEventListener('click', (e) => {
             if (e.target.classList.contains('period-btn')) {
                 document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
@@ -1143,13 +2103,12 @@
             }
         });
 
-        // Backtest functionality
+        // Backtest
         async function runBacktest() {
             const strategy = document.getElementById('backtest-strategy').value;
             const periodSelect = document.getElementById('backtest-period').value;
             const capital = parseFloat(document.getElementById('backtest-capital').value) || 100000;
 
-            // Calculate dates based on period
             const endDate = new Date();
             const startDate = new Date();
             const periodDays = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730, '5y': 1825 };
@@ -1172,10 +2131,13 @@
                 return;
             }
 
-            // Show results
             document.getElementById('backtest-results').classList.add('visible');
 
-            // Update metrics
+            const dataSource = data.data_source || 'unknown';
+            const dataSourceEl = document.getElementById('bt-data-source');
+            dataSourceEl.textContent = dataSource === 'yahoo_finance' ? 'Yahoo Finance (Real Data)' : 'Simulated';
+            dataSourceEl.style.color = dataSource === 'yahoo_finance' ? 'var(--accent-green)' : 'var(--accent-amber)';
+
             const returnEl = document.getElementById('bt-return');
             returnEl.textContent = (data.metrics.total_return >= 0 ? '+' : '') + data.metrics.total_return.toFixed(2) + '%';
             returnEl.style.color = data.metrics.total_return >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
@@ -1186,10 +2148,9 @@
             document.getElementById('bt-trades').textContent = data.metrics.total_trades;
             document.getElementById('bt-winrate').textContent = data.metrics.win_rate.toFixed(1) + '%';
 
-            document.getElementById('bt-start-value').textContent = formatMoney(data.initial_capital);
-            document.getElementById('bt-end-value').textContent = formatMoney(data.final_value);
+            document.getElementById('bt-start-value').textContent = formatMoneyFull(data.initial_capital);
+            document.getElementById('bt-end-value').textContent = formatMoneyFull(data.final_value);
 
-            // Draw backtest chart
             drawBacktestChart(data);
 
             showMessage(`Backtest complete: ${data.metrics.total_return >= 0 ? '+' : ''}${data.metrics.total_return.toFixed(2)}% return`);
@@ -1208,10 +2169,9 @@
             });
             const values = data.equity_curve.map(p => p.value);
 
-            // Gradient fill
-            const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+            const gradient = ctx.createLinearGradient(0, 0, 0, 250);
             const isPositive = data.metrics.total_return >= 0;
-            gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 71, 87, 0.2)');
+            gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 159, 0.2)' : 'rgba(255, 45, 85, 0.2)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
             backtestChart = new Chart(ctx, {
@@ -1221,7 +2181,7 @@
                     datasets: [{
                         label: 'Portfolio Value',
                         data: values,
-                        borderColor: isPositive ? '#00ff88' : '#ff4757',
+                        borderColor: isPositive ? '#00FF9F' : '#FF2D55',
                         backgroundColor: gradient,
                         borderWidth: 2,
                         fill: true,
@@ -1236,14 +2196,14 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
-                            titleColor: isPositive ? '#00ff88' : '#ff4757',
+                            backgroundColor: 'rgba(10, 10, 20, 0.95)',
+                            titleColor: isPositive ? '#00FF9F' : '#FF2D55',
                             bodyColor: '#ffffff',
-                            borderColor: '#2a2a4a',
+                            borderColor: 'rgba(157, 78, 221, 0.2)',
                             borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
-                                    return formatMoney(context.raw);
+                                    return formatMoneyFull(context.raw);
                                 }
                             }
                         }
@@ -1251,18 +2211,15 @@
                     scales: {
                         x: {
                             grid: { display: false },
-                            ticks: {
-                                maxTicksLimit: 6,
-                                font: { size: 9 }
-                            }
+                            ticks: { maxTicksLimit: 6, font: { size: 10 } }
                         },
                         y: {
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
                             ticks: {
                                 callback: function(value) {
                                     return '$' + (value / 1000).toFixed(0) + 'k';
                                 },
-                                font: { size: 9 }
+                                font: { size: 10 }
                             }
                         }
                     }
@@ -1270,30 +2227,24 @@
             });
         }
 
+        // Load functions
         async function loadHealth() {
             const data = await fetchAPI('/health');
-            const statusDot = document.getElementById('status-indicator');
-            const statusText = document.getElementById('status-text');
             const statusEl = document.getElementById('system-status');
 
             if (data.error) {
-                statusDot.classList.add('offline');
-                statusText.textContent = 'Offline';
                 statusEl.innerHTML = `<div style="color: var(--accent-red);">Connection Error</div>`;
                 return;
             }
 
-            statusDot.classList.remove('offline');
-            statusText.textContent = data.status === 'ok' ? 'Online' : 'Degraded';
-
             statusEl.innerHTML = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
                     <span style="color: var(--text-muted);">Storage</span>
                     <span style="color: ${data.components?.storage === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)'};">
                         ${data.storage_backend || 'Unknown'}
                     </span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
                     <span style="color: var(--text-muted);">Market</span>
                     <span style="color: ${data.market_status === 'open' ? 'var(--accent-green)' : 'var(--accent-amber)'};">
                         ${data.market_status?.toUpperCase() || 'Unknown'}
@@ -1306,7 +2257,7 @@
             const data = await fetchAPI('/portfolio/settings');
 
             if (data.error) {
-                document.getElementById('hero-total').textContent = '$0.00';
+                document.getElementById('hero-total').textContent = '$0';
                 return;
             }
 
@@ -1314,23 +2265,22 @@
             const initial = parseFloat(data.initial_value) || 100000;
             const gains = parseFloat(data.realized_gains) || 0;
 
-            // Update hero
             document.getElementById('hero-total').textContent = formatMoney(cash);
 
             const changePercent = ((cash - initial) / initial * 100);
             const heroChange = document.getElementById('hero-change');
-            heroChange.textContent = (changePercent >= 0 ? '+' : '') + changePercent.toFixed(2) + '%';
-            heroChange.className = 'hero-change ' + (changePercent >= 0 ? 'positive' : 'negative');
+            heroChange.textContent = (changePercent >= 0 ? '+' : '') + changePercent.toFixed(1) + '%';
+            heroChange.style.color = changePercent >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
 
-            // Update stats
-            document.getElementById('stat-cash').textContent = formatMoney(cash);
-            document.getElementById('stat-holdings').textContent = formatMoney(0); // Will be updated with holdings
+            document.getElementById('stat-cash').textContent = formatMoneyFull(cash);
+            document.getElementById('stat-holdings').textContent = formatMoneyFull(0);
 
             const gainsEl = document.getElementById('stat-gains');
-            gainsEl.textContent = formatMoney(gains);
-            gainsEl.className = 'stat-value ' + (gains >= 0 ? 'positive' : 'negative');
+            gainsEl.textContent = formatMoneyFull(gains);
+            gainsEl.className = 'stat-value ' + (gains >= 0 ? 'green' : 'red');
 
             document.getElementById('stat-strategy').textContent = data.current_strategy || '-';
+            document.getElementById('hero-strategy').textContent = (data.current_strategy || '-').toUpperCase();
             currentStrategy = data.current_strategy || 'balanced';
         }
 
@@ -1348,7 +2298,7 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">&#x1F4BC;</div>
                         <div>No holdings yet</div>
-                        <div style="font-size: 0.8rem; margin-top: 5px;">Execute a trade to get started</div>
+                        <div style="font-size: 0.85rem; margin-top: 8px; color: var(--text-muted);">Execute a trade to get started</div>
                     </div>
                 `;
                 return;
@@ -1358,9 +2308,8 @@
             data.holdings.forEach(h => {
                 holdingsValue += (parseFloat(h.quantity) || 0) * (parseFloat(h.avg_cost) || 0);
             });
-            document.getElementById('stat-holdings').textContent = formatMoney(holdingsValue);
+            document.getElementById('stat-holdings').textContent = formatMoneyFull(holdingsValue);
 
-            // Update hero total to include holdings
             const cashEl = document.getElementById('stat-cash');
             const cash = parseFloat(cashEl.textContent.replace(/[^0-9.-]/g, '')) || 0;
             document.getElementById('hero-total').textContent = formatMoney(cash + holdingsValue);
@@ -1380,8 +2329,8 @@
                             <tr>
                                 <td class="symbol">${h.symbol}</td>
                                 <td>${parseFloat(h.quantity).toFixed(2)}</td>
-                                <td>${formatMoney(h.avg_cost)}</td>
-                                <td>${formatMoney(h.quantity * h.avg_cost)}</td>
+                                <td>${formatMoneyFull(h.avg_cost)}</td>
+                                <td>${formatMoneyFull(h.quantity * h.avg_cost)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1427,8 +2376,8 @@
                                 <td class="${t.type}">${t.type.toUpperCase()}</td>
                                 <td class="symbol">${t.symbol}</td>
                                 <td>${t.quantity}</td>
-                                <td>${formatMoney(t.price)}</td>
-                                <td>${formatMoney(t.total)}</td>
+                                <td>${formatMoneyFull(t.price)}</td>
+                                <td>${formatMoneyFull(t.total)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1445,18 +2394,18 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">&#x1F3AF;</div>
                         <div>No strategies configured</div>
-                        <div style="font-size: 0.8rem; margin-top: 5px;">Click Initialize to create defaults</div>
+                        <div style="font-size: 0.85rem; margin-top: 8px; color: var(--text-muted);">Click Initialize to create defaults</div>
                     </div>
                 `;
                 return;
             }
 
             const colors = {
-                conservative: '#22c55e',
-                growth: '#3b82f6',
-                value: '#a855f7',
-                balanced: '#f59e0b',
-                aggressive: '#ef4444'
+                conservative: '#00FF9F',
+                growth: '#00F5FF',
+                value: '#9D4EDD',
+                balanced: '#FFB800',
+                aggressive: '#FF2D55'
             };
 
             el.innerHTML = data.customizations.map(s => `
@@ -1538,12 +2487,38 @@
             if (data.error) {
                 showMessage('Error: ' + (data.message || data.error), true);
             } else {
-                showMessage(`${type.toUpperCase()} ${quantity} ${symbol} @ ${formatMoney(price)}`);
+                showMessage(`${type.toUpperCase()} ${quantity} ${symbol} @ ${formatMoneyFull(price)}`);
                 document.getElementById('trade-symbol').value = '';
                 document.getElementById('trade-quantity').value = '';
                 document.getElementById('trade-price').value = '';
                 loadAll();
             }
+        }
+
+        // Simulated market data for demo
+        function updateMarketCards() {
+            const markets = [
+                { id: 'btc', base: 45000, volatility: 500 },
+                { id: 'eth', base: 2800, volatility: 50 },
+                { id: 'spx', base: 5200, volatility: 20 },
+                { id: 'aapl', base: 195, volatility: 2 }
+            ];
+
+            markets.forEach(m => {
+                const change = (Math.random() - 0.5) * m.volatility;
+                const price = m.base + change;
+                const pctChange = (change / m.base * 100);
+
+                document.getElementById(`${m.id}-price`).textContent = formatMoneyFull(price);
+
+                const changeEl = document.getElementById(`${m.id}-change`);
+                changeEl.textContent = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(2) + '%';
+                changeEl.className = 'market-change ' + (pctChange >= 0 ? 'positive' : 'negative');
+            });
+
+            // Update nav ticker
+            document.getElementById('ticker-btc').textContent = formatMoney(45000 + (Math.random() - 0.5) * 500);
+            document.getElementById('ticker-eth').textContent = formatMoney(2800 + (Math.random() - 0.5) * 50);
         }
 
         function loadAll() {
@@ -1553,13 +2528,15 @@
             loadTrades();
             loadStrategies();
             loadPerformanceChart(currentPeriod);
+            updateMarketCards();
         }
 
         // Initial load
         loadAll();
 
-        // Refresh every 30 seconds
+        // Refresh
         setInterval(loadAll, 30000);
+        setInterval(updateMarketCards, 5000);
     </script>
 </body>
 </html>
