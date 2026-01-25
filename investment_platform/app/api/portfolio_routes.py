@@ -5,7 +5,8 @@ Endpoints for managing portfolio state including settings, cash, and reset.
 """
 from flask import Blueprint, jsonify, request
 from app.database import is_csv_backend, get_csv_storage, get_scoped_session
-from app.models import PortfolioState, Holdings, TradesHistory
+from app.models import PortfolioState, Holdings, TradesHistory, StrategyCustomization
+from app.data.strategies import STRATEGY_IDS, DEFAULT_CUSTOMIZATION
 
 portfolio_bp = Blueprint('portfolio', __name__)
 
@@ -27,6 +28,7 @@ def initialize_portfolio():
     """
     POST /api/portfolio/initialize
     Initialize or reinitialize the portfolio with default settings.
+    Also creates default strategy customizations.
     """
     try:
         data = request.get_json(silent=True) or {}
@@ -51,6 +53,17 @@ def initialize_portfolio():
                     current_cash=initial_value,
                     is_initialized=1
                 )
+
+            # Create default strategy customizations
+            for strategy_id in STRATEGY_IDS:
+                existing = storage.get_strategy_customization(user_id, strategy_id)
+                if not existing:
+                    storage.upsert_strategy_customization(
+                        user_id,
+                        strategy_id,
+                        **DEFAULT_CUSTOMIZATION
+                    )
+
             portfolio = storage.get_portfolio(user_id)
             # Convert Decimal to float for JSON serialization
             if portfolio:
@@ -68,6 +81,11 @@ def initialize_portfolio():
             portfolio.current_cash = initial_value
             portfolio.is_initialized = 1
             portfolio.realized_gains = 0
+
+            # Create default strategy customizations
+            for strategy_id in STRATEGY_IDS:
+                StrategyCustomization.upsert(user_id, strategy_id, **DEFAULT_CUSTOMIZATION)
+
             db.session.commit()
             return jsonify({
                 'message': 'Portfolio initialized',
