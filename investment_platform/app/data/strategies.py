@@ -9,7 +9,6 @@ Contains 5 macro-driven investment strategies that:
 
 Each strategy targets a specific macro regime/theme.
 """
-from app.services.symbol_selector import get_symbols_for_strategy
 
 
 # ============================================================================
@@ -282,6 +281,8 @@ def get_strategy_stocks(strategy_id: str) -> list:
 
     # Use dynamic selection if sector_allocation exists
     if strategy.get('sector_allocation'):
+        # Lazy import to avoid circular dependency
+        from app.services.symbol_selector import get_symbols_for_strategy
         return get_symbols_for_strategy(strategy)
 
     # Fall back to static stocks
