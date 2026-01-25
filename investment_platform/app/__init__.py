@@ -50,6 +50,7 @@ def create_app(config_class=None):
     from app.api.market_data_routes import market_data_bp
     from app.api.trading_routes import trading_bp
     from app.api.health_routes import health_bp
+    from app.api.backtest_routes import backtest_bp
 
     app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
     app.register_blueprint(holdings_bp, url_prefix='/api/holdings')
@@ -58,6 +59,7 @@ def create_app(config_class=None):
     app.register_blueprint(market_data_bp, url_prefix='/api/market')
     app.register_blueprint(trading_bp, url_prefix='/api/trading')
     app.register_blueprint(health_bp, url_prefix='/api')
+    app.register_blueprint(backtest_bp, url_prefix='/api/backtest')
 
     # Create database tables
     create_all()

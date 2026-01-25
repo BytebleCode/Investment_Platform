@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Investment Platform | Portfolio Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-primary: #0a0a0f;
@@ -577,21 +578,102 @@
             opacity: 0.3;
         }
 
-        /* Chart Placeholder */
+        /* Chart Container */
         .chart-container {
             height: 300px;
             background: var(--bg-secondary);
             border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px dashed var(--border-color);
+            margin-bottom: 20px;
+            padding: 15px;
+            position: relative;
+        }
+
+        .chart-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Period Selector */
+        .period-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.75rem;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .period-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .period-btn.active {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-primary);
+            box-shadow: var(--glow-cyan);
+        }
+
+        /* Backtest Panel */
+        .backtest-panel {
+            margin-top: 30px;
+        }
+
+        .backtest-config {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
             margin-bottom: 20px;
         }
 
-        .chart-placeholder {
-            color: var(--text-muted);
+        .backtest-results {
+            display: none;
+        }
+
+        .backtest-results.visible {
+            display: block;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
             text-align: center;
+        }
+
+        .metric-box .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .metric-box .label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .backtest-chart-container {
+            height: 250px;
+            margin-top: 20px;
         }
 
         /* Scrollbar */
@@ -689,18 +771,18 @@
                 <div class="card mb-20">
                     <div class="card-header">
                         <h2 class="card-title">Performance</h2>
-                        <div class="card-actions">
-                            <button class="btn btn-sm btn-secondary">1D</button>
-                            <button class="btn btn-sm btn-secondary">1W</button>
-                            <button class="btn btn-sm btn-primary">1M</button>
-                            <button class="btn btn-sm btn-secondary">1Y</button>
+                        <div class="card-actions" id="period-buttons">
+                            <button class="period-btn" data-period="1d">1D</button>
+                            <button class="period-btn" data-period="1w">1W</button>
+                            <button class="period-btn active" data-period="1m">1M</button>
+                            <button class="period-btn" data-period="3m">3M</button>
+                            <button class="period-btn" data-period="1y">1Y</button>
                         </div>
                     </div>
                     <div class="chart-container">
-                        <div class="chart-placeholder">
-                            <div style="font-size: 2rem; margin-bottom: 10px;">&#x1F4C8;</div>
-                            <div>Chart will appear here</div>
-                            <div style="font-size: 0.8rem; margin-top: 5px;">Coming in next update</div>
+                        <canvas id="performanceChart"></canvas>
+                        <div class="chart-loading" id="chart-loading">
+                            <div class="loading">Loading chart data...</div>
                         </div>
                     </div>
                 </div>
@@ -779,7 +861,7 @@
         </div>
 
         <!-- Strategies Section -->
-        <div class="card">
+        <div class="card mb-20">
             <div class="card-header">
                 <h2 class="card-title">Investment Strategies</h2>
             </div>
@@ -787,11 +869,92 @@
                 <div class="loading">Loading strategies...</div>
             </div>
         </div>
+
+        <!-- Backtesting Panel -->
+        <div class="card backtest-panel">
+            <div class="card-header">
+                <h2 class="card-title">Strategy Backtester</h2>
+            </div>
+
+            <div class="backtest-config">
+                <div class="form-group">
+                    <label class="form-label">Strategy</label>
+                    <select class="form-select" id="backtest-strategy">
+                        <option value="balanced">Balanced</option>
+                        <option value="conservative">Conservative</option>
+                        <option value="growth">Growth</option>
+                        <option value="value">Value</option>
+                        <option value="aggressive">Aggressive</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Period</label>
+                    <select class="form-select" id="backtest-period">
+                        <option value="1m">1 Month</option>
+                        <option value="3m">3 Months</option>
+                        <option value="6m">6 Months</option>
+                        <option value="1y" selected>1 Year</option>
+                        <option value="2y">2 Years</option>
+                        <option value="5y">5 Years</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Initial Capital</label>
+                    <input type="number" class="form-input" id="backtest-capital" value="100000" min="1000" step="1000">
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="runBacktest()">Run Backtest</button>
+                </div>
+            </div>
+
+            <div class="backtest-results" id="backtest-results">
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="value" id="bt-return" style="color: var(--accent-green);">+0.00%</div>
+                        <div class="label">Total Return</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="value" id="bt-annual" style="color: var(--accent-cyan);">0.00%</div>
+                        <div class="label">Annualized</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="value" id="bt-drawdown" style="color: var(--accent-red);">0.00%</div>
+                        <div class="label">Max Drawdown</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="value" id="bt-sharpe" style="color: var(--accent-purple);">0.00</div>
+                        <div class="label">Sharpe Ratio</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="value" id="bt-trades" style="color: var(--text-primary);">0</div>
+                        <div class="label">Total Trades</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="value" id="bt-winrate" style="color: var(--accent-amber);">0%</div>
+                        <div class="label">Win Rate</div>
+                    </div>
+                </div>
+
+                <div class="card-header" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); border-bottom: none;">
+                    <h3 class="card-title" style="font-size: 0.85rem;">Equity Curve</h3>
+                    <div style="display: flex; gap: 15px; font-size: 0.75rem;">
+                        <span>Start: <span id="bt-start-value" style="color: var(--accent-cyan);">$0</span></span>
+                        <span>End: <span id="bt-end-value" style="color: var(--accent-green);">$0</span></span>
+                    </div>
+                </div>
+                <div class="backtest-chart-container">
+                    <canvas id="backtestChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         const API_BASE = '/api';
         let currentStrategy = 'balanced';
+        let performanceChart = null;
+        let backtestChart = null;
+        let currentPeriod = '1m';
 
         // Update time display
         function updateTime() {
@@ -824,6 +987,287 @@
                 console.error('API Error:', e);
                 return { error: e.message };
             }
+        }
+
+        // Chart.js default configuration
+        Chart.defaults.color = '#8892b0';
+        Chart.defaults.borderColor = 'rgba(42, 42, 74, 0.5)';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+
+        // Performance Chart
+        async function loadPerformanceChart(period = '1m') {
+            const loadingEl = document.getElementById('chart-loading');
+            loadingEl.style.display = 'block';
+
+            const data = await fetchAPI(`/portfolio/performance?period=${period}`);
+
+            loadingEl.style.display = 'none';
+
+            if (data.error || !data.equity_curve || data.equity_curve.length === 0) {
+                // Show empty state
+                if (performanceChart) {
+                    performanceChart.destroy();
+                    performanceChart = null;
+                }
+                return;
+            }
+
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+
+            // Prepare data
+            const labels = data.equity_curve.map(p => {
+                const d = new Date(p.date);
+                return period === '1d' ? d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) :
+                       d.toLocaleDateString([], {month: 'short', day: 'numeric'});
+            });
+            const values = data.equity_curve.map(p => p.value);
+            const cashValues = data.equity_curve.map(p => p.cash);
+
+            // Trade markers
+            const tradePoints = data.trades.map(t => {
+                const idx = data.equity_curve.findIndex(p => p.date === t.date);
+                return idx >= 0 ? { x: idx, y: t.value, type: t.type, symbol: t.symbol } : null;
+            }).filter(p => p);
+
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+            gradient.addColorStop(0, 'rgba(0, 212, 255, 0.3)');
+            gradient.addColorStop(1, 'rgba(0, 212, 255, 0)');
+
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Portfolio Value',
+                            data: values,
+                            borderColor: '#00d4ff',
+                            backgroundColor: gradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 6,
+                            pointHoverBackgroundColor: '#00d4ff',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 2
+                        },
+                        {
+                            label: 'Cash',
+                            data: cashValues,
+                            borderColor: '#7b2cbf',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#00d4ff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#2a2a4a',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatMoney(context.raw);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 8,
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + (value / 1000).toFixed(0) + 'k';
+                                },
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Add trade markers as annotations if there are trades
+            if (tradePoints.length > 0) {
+                // Could add scatter points for trades here
+            }
+        }
+
+        // Period button handlers
+        document.getElementById('period-buttons').addEventListener('click', (e) => {
+            if (e.target.classList.contains('period-btn')) {
+                document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                currentPeriod = e.target.dataset.period;
+                loadPerformanceChart(currentPeriod);
+            }
+        });
+
+        // Backtest functionality
+        async function runBacktest() {
+            const strategy = document.getElementById('backtest-strategy').value;
+            const periodSelect = document.getElementById('backtest-period').value;
+            const capital = parseFloat(document.getElementById('backtest-capital').value) || 100000;
+
+            // Calculate dates based on period
+            const endDate = new Date();
+            const startDate = new Date();
+            const periodDays = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730, '5y': 1825 };
+            startDate.setDate(startDate.getDate() - periodDays[periodSelect]);
+
+            showMessage('Running backtest...');
+
+            const data = await fetchAPI('/backtest/run', {
+                method: 'POST',
+                body: JSON.stringify({
+                    strategy_id: strategy,
+                    start_date: startDate.toISOString().split('T')[0],
+                    end_date: endDate.toISOString().split('T')[0],
+                    initial_capital: capital
+                })
+            });
+
+            if (data.error) {
+                showMessage('Backtest error: ' + data.error, true);
+                return;
+            }
+
+            // Show results
+            document.getElementById('backtest-results').classList.add('visible');
+
+            // Update metrics
+            const returnEl = document.getElementById('bt-return');
+            returnEl.textContent = (data.metrics.total_return >= 0 ? '+' : '') + data.metrics.total_return.toFixed(2) + '%';
+            returnEl.style.color = data.metrics.total_return >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+
+            document.getElementById('bt-annual').textContent = data.metrics.annualized_return.toFixed(2) + '%';
+            document.getElementById('bt-drawdown').textContent = data.metrics.max_drawdown.toFixed(2) + '%';
+            document.getElementById('bt-sharpe').textContent = data.metrics.sharpe_ratio.toFixed(2);
+            document.getElementById('bt-trades').textContent = data.metrics.total_trades;
+            document.getElementById('bt-winrate').textContent = data.metrics.win_rate.toFixed(1) + '%';
+
+            document.getElementById('bt-start-value').textContent = formatMoney(data.initial_capital);
+            document.getElementById('bt-end-value').textContent = formatMoney(data.final_value);
+
+            // Draw backtest chart
+            drawBacktestChart(data);
+
+            showMessage(`Backtest complete: ${data.metrics.total_return >= 0 ? '+' : ''}${data.metrics.total_return.toFixed(2)}% return`);
+        }
+
+        function drawBacktestChart(data) {
+            const ctx = document.getElementById('backtestChart').getContext('2d');
+
+            if (backtestChart) {
+                backtestChart.destroy();
+            }
+
+            const labels = data.equity_curve.map(p => {
+                const d = new Date(p.date);
+                return d.toLocaleDateString([], {month: 'short', day: 'numeric'});
+            });
+            const values = data.equity_curve.map(p => p.value);
+
+            // Gradient fill
+            const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+            const isPositive = data.metrics.total_return >= 0;
+            gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 71, 87, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            backtestChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: values,
+                        borderColor: isPositive ? '#00ff88' : '#ff4757',
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: isPositive ? '#00ff88' : '#ff4757',
+                            bodyColor: '#ffffff',
+                            borderColor: '#2a2a4a',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return formatMoney(context.raw);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                maxTicksLimit: 6,
+                                font: { size: 9 }
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + (value / 1000).toFixed(0) + 'k';
+                                },
+                                font: { size: 9 }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         async function loadHealth() {
@@ -915,6 +1359,11 @@
                 holdingsValue += (parseFloat(h.quantity) || 0) * (parseFloat(h.avg_cost) || 0);
             });
             document.getElementById('stat-holdings').textContent = formatMoney(holdingsValue);
+
+            // Update hero total to include holdings
+            const cashEl = document.getElementById('stat-cash');
+            const cash = parseFloat(cashEl.textContent.replace(/[^0-9.-]/g, '')) || 0;
+            document.getElementById('hero-total').textContent = formatMoney(cash + holdingsValue);
 
             el.innerHTML = `
                 <table class="data-table">
@@ -1103,6 +1552,7 @@
             loadHoldings();
             loadTrades();
             loadStrategies();
+            loadPerformanceChart(currentPeriod);
         }
 
         // Initial load
