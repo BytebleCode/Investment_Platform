@@ -1,24 +1,31 @@
 """
 Macro Signals Service
 
-Fetches and normalizes macroeconomic signals from the FRED API
-(Federal Reserve Economic Data) for strategy regime detection.
+Reads macroeconomic signals from local CSV files (fetched from FRED API)
+for strategy regime detection. Falls back to API if CSV not available.
+
+To update CSV data, run:
+    python scripts/fetch_fred_data.py
 """
 import os
+import csv
 import logging
 from datetime import datetime, timedelta
-from functools import lru_cache
+from pathlib import Path
 
 import requests
 
 logger = logging.getLogger(__name__)
 
 
-# FRED API Configuration
+# FRED API Configuration (fallback)
 FRED_API_KEY = os.environ.get('FRED_API_KEY', '')
 FRED_BASE_URL = 'https://api.stlouisfed.org/fred/series/observations'
 
-# Cache for signal values (TTL managed by caching mechanism)
+# CSV data directory
+CSV_DATA_DIR = Path(__file__).parent.parent.parent / 'data' / 'fred_data'
+
+# Cache for signal values
 _signal_cache = {}
 _cache_expiry = {}
 CACHE_TTL_SECONDS = 3600  # 1 hour cache
@@ -38,13 +45,13 @@ SIGNAL_RANGES = {
     'T10YIE': (0, 4, False),          # 10Y breakeven: 0-4%
     'PPIACO': (-5, 15, False),        # PPI YoY: -5 to 15%
 
-    # Growth & Activity
+    # Growth and Activity
     'ISM/MAN_PMI': (40, 65, False),   # ISM PMI: 40-65
     'INDPRO': (-10, 10, False),       # Industrial prod YoY: -10 to 10%
     'RSAFS': (-15, 20, False),        # Retail sales YoY: -15 to 20%
     'USSLIND': (-5, 5, False),        # LEI: -5 to 5%
 
-    # Credit & Financial Conditions
+    # Credit and Financial Conditions
     'BAMLH0A0HYM2': (2, 10, True),    # HY spread: 2-10% (inverted: high = bad)
     'NFCI': (-1, 1, True),            # NFCI: -1 to 1 (inverted: positive = tight)
     'M2SL': (-5, 25, False),          # M2 YoY: -5 to 25%
@@ -66,9 +73,72 @@ REGIME_THRESHOLDS = {
 }
 
 
+def read_csv_series(series_id):
+    """
+    Read a FRED series from local CSV file.
+
+    Args:
+        series_id: FRED series identifier
+
+    Returns:
+        list: List of (date_str, value) tuples, sorted by date
+    """
+    csv_path = CSV_DATA_DIR / f"{series_id}.csv"
+
+    if not csv_path.exists():
+        return []
+
+    try:
+        with open(csv_path, 'r', encoding='ascii') as f:
+            reader = csv.DictReader(f)
+            data = []
+            for row in reader:
+                try:
+                    data.append((row['date'], float(row['value'])))
+                except (KeyError, ValueError):
+                    continue
+            return data
+    except Exception as e:
+        logger.error(f"Error reading CSV for {series_id}: {e}")
+        return []
+
+
+def get_latest_from_csv(series_id):
+    """Get the latest value from a CSV file."""
+    data = read_csv_series(series_id)
+    if data:
+        return data[-1][1]  # Return latest value
+    return None
+
+
+def calculate_yoy_from_csv(series_id):
+    """Calculate year-over-year change from CSV data."""
+    data = read_csv_series(series_id)
+    if len(data) < 13:
+        return None
+
+    latest_value = data[-1][1]
+    latest_date = datetime.strptime(data[-1][0], '%Y-%m-%d')
+
+    # Find value from ~1 year ago
+    target_date = latest_date - timedelta(days=365)
+
+    for date_str, value in reversed(data[:-1]):
+        obs_date = datetime.strptime(date_str, '%Y-%m-%d')
+        days_diff = (latest_date - obs_date).days
+
+        if days_diff >= 350:  # At least ~1 year ago
+            if value != 0:
+                return ((latest_value - value) / abs(value)) * 100
+            break
+
+    return None
+
+
 class MacroSignalService:
     """
-    Fetches and processes macroeconomic signals from FRED API.
+    Fetches and processes macroeconomic signals from local CSV files
+    (with optional API fallback).
     """
 
     def __init__(self, api_key=None):
@@ -79,18 +149,24 @@ class MacroSignalService:
             api_key: FRED API key (uses env var FRED_API_KEY if not provided)
         """
         self.api_key = api_key or FRED_API_KEY
-        self.enabled = bool(self.api_key)
+        self.csv_available = CSV_DATA_DIR.exists() and any(CSV_DATA_DIR.glob('*.csv'))
+        self.api_enabled = bool(self.api_key)
 
-        if not self.enabled:
-            logger.warning("FRED API key not configured. Macro signals disabled.")
+        if self.csv_available:
+            csv_count = len(list(CSV_DATA_DIR.glob('*.csv')))
+            logger.info(f"Macro signals using CSV data ({csv_count} series)")
+        elif self.api_enabled:
+            logger.info("Macro signals using FRED API (no CSV data found)")
+        else:
+            logger.warning("Macro signals disabled (no CSV data or API key)")
 
     def is_enabled(self):
-        """Check if FRED API is configured and available."""
-        return self.enabled
+        """Check if macro signals are available."""
+        return self.csv_available or self.api_enabled
 
     def get_signal(self, series_id, transform=None, lookback_days=365):
         """
-        Fetch the latest value for a FRED series.
+        Get the latest value for a FRED series.
 
         Args:
             series_id: FRED series identifier (e.g., 'FEDFUNDS')
@@ -100,9 +176,6 @@ class MacroSignalService:
         Returns:
             float: Latest signal value, or None if unavailable
         """
-        if not self.enabled:
-            return None
-
         # Check cache
         cache_key = f"{series_id}:{transform}"
         if cache_key in _signal_cache:
@@ -110,14 +183,35 @@ class MacroSignalService:
             if datetime.now() < expiry:
                 return _signal_cache[cache_key]
 
-        try:
-            # Handle ISM PMI special case (different source)
-            if series_id.startswith('ISM/'):
-                # ISM data requires separate handling
-                # For now, return simulated neutral value
-                return 52.0
+        # Handle ISM PMI special case
+        if series_id.startswith('ISM/'):
+            return 52.0  # Default neutral value
 
-            # Fetch from FRED
+        # Try CSV first
+        if self.csv_available:
+            if transform == 'yoy':
+                value = calculate_yoy_from_csv(series_id)
+            else:
+                value = get_latest_from_csv(series_id)
+
+            if value is not None:
+                _signal_cache[cache_key] = value
+                _cache_expiry[cache_key] = datetime.now() + timedelta(seconds=CACHE_TTL_SECONDS)
+                return value
+
+        # Fall back to API
+        if self.api_enabled:
+            value = self._fetch_from_api(series_id, transform, lookback_days)
+            if value is not None:
+                _signal_cache[cache_key] = value
+                _cache_expiry[cache_key] = datetime.now() + timedelta(seconds=CACHE_TTL_SECONDS)
+                return value
+
+        return None
+
+    def _fetch_from_api(self, series_id, transform=None, lookback_days=365):
+        """Fetch from FRED API (fallback)."""
+        try:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=lookback_days)
 
@@ -137,19 +231,16 @@ class MacroSignalService:
 
             observations = data.get('observations', [])
             if not observations:
-                logger.warning(f"No data for FRED series: {series_id}")
                 return None
 
-            # Get latest value
             latest = observations[0]
             if latest['value'] == '.':
                 return None
 
             value = float(latest['value'])
 
-            # Apply year-over-year transform if needed
+            # Apply year-over-year transform
             if transform == 'yoy' and len(observations) >= 13:
-                # Find observation from ~1 year ago
                 year_ago = None
                 for obs in observations:
                     if obs['value'] != '.':
@@ -161,17 +252,10 @@ class MacroSignalService:
                 if year_ago and year_ago != 0:
                     value = ((value - year_ago) / abs(year_ago)) * 100
 
-            # Cache result
-            _signal_cache[cache_key] = value
-            _cache_expiry[cache_key] = datetime.now() + timedelta(seconds=CACHE_TTL_SECONDS)
-
             return value
 
-        except requests.RequestException as e:
+        except Exception as e:
             logger.error(f"FRED API error for {series_id}: {e}")
-            return None
-        except (KeyError, ValueError, IndexError) as e:
-            logger.error(f"Error parsing FRED data for {series_id}: {e}")
             return None
 
     def normalize_signal(self, value, series_id):
@@ -188,7 +272,6 @@ class MacroSignalService:
         if value is None:
             return 0.0
 
-        # Get normalization parameters
         if series_id not in SIGNAL_RANGES:
             return 0.0
 
@@ -203,7 +286,7 @@ class MacroSignalService:
         # Convert to -1 to +1
         result = (normalized * 2) - 1
 
-        # Invert if needed (for signals where higher = worse)
+        # Invert if needed
         if invert:
             result = -result
 
@@ -215,16 +298,12 @@ class MacroSignalService:
 
         Args:
             strategy_signals: Dict of signal configs from strategy definition
-                e.g., {
-                    'fed_funds_rate': {'series': 'FEDFUNDS', 'weight': 0.30},
-                    'yield_curve': {'series': 'T10Y2Y', 'weight': 0.35, 'invert': True}
-                }
 
         Returns:
             float: Aggregate score between -1.0 and +1.0
         """
-        if not self.enabled:
-            return 0.0  # Neutral when disabled
+        if not self.is_enabled():
+            return 0.0
 
         total_weight = 0
         weighted_sum = 0
@@ -238,15 +317,12 @@ class MacroSignalService:
             if not series_id:
                 continue
 
-            # Fetch signal
             value = self.get_signal(series_id, transform)
             if value is None:
                 continue
 
-            # Normalize
             normalized = self.normalize_signal(value, series_id)
 
-            # Apply signal-level inversion
             if invert:
                 normalized = -normalized
 
@@ -285,11 +361,12 @@ class MacroSignalService:
         """
         signals = strategy.get('signals', {})
 
-        if not signals or not self.enabled:
+        if not signals or not self.is_enabled():
             return {
                 'score': 0.0,
                 'regime': 'neutral',
-                'enabled': self.enabled,
+                'enabled': self.is_enabled(),
+                'data_source': 'none',
                 'signals': {}
             }
 
@@ -316,6 +393,7 @@ class MacroSignalService:
             'score': round(score, 3),
             'regime': regime,
             'enabled': True,
+            'data_source': 'csv' if self.csv_available else 'api',
             'signals': signal_details
         }
 

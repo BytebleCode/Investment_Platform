@@ -1,56 +1,65 @@
 """
 Strategy Selector Component
 
-Displays the 5 investment strategies as selectable cards.
+Displays the 5 macro investment strategies as selectable cards.
 """
 from dash import html
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 
-# Strategy configurations
+# Macro Strategy configurations
 STRATEGIES = {
-    'conservative': {
-        'name': 'Conservative',
-        'description': 'Low-risk, stable returns',
-        'risk': 1,
-        'return_range': '2-6%',
-        'icon': 'mdi:shield-check',
-        'color': 'green'
-    },
-    'growth': {
-        'name': 'Growth',
-        'description': 'High-growth technology focus',
-        'risk': 4,
-        'return_range': '10-25%',
-        'icon': 'mdi:rocket-launch',
+    'monetary_policy': {
+        'name': 'Monetary Policy',
+        'description': 'Rate-sensitive: banks, utilities, treasury',
+        'risk': 3,
+        'return_range': '5-18%',
+        'icon': 'mdi:bank',
         'color': 'blue'
     },
-    'value': {
-        'name': 'Value',
-        'description': 'Undervalued dividend stocks',
-        'risk': 2,
-        'return_range': '6-12%',
-        'icon': 'mdi:diamond-stone',
-        'color': 'violet'
-    },
-    'balanced': {
-        'name': 'Balanced',
-        'description': 'Mix of growth and stability',
-        'risk': 3,
-        'return_range': '5-12%',
-        'icon': 'mdi:scale-balance',
+    'inflation_hedge': {
+        'name': 'Inflation Hedge',
+        'description': 'Commodities, energy, materials',
+        'risk': 4,
+        'return_range': '8-25%',
+        'icon': 'mdi:fire',
         'color': 'orange'
     },
-    'aggressive': {
-        'name': 'Aggressive',
-        'description': 'High-risk speculation',
+    'growth_expansion': {
+        'name': 'Growth Expansion',
+        'description': 'Tech, industrials, high-beta',
         'risk': 5,
-        'return_range': '-20-50%',
-        'icon': 'mdi:fire',
+        'return_range': '12-35%',
+        'icon': 'mdi:rocket-launch',
+        'color': 'green'
+    },
+    'defensive_quality': {
+        'name': 'Defensive Quality',
+        'description': 'Utilities, staples, healthcare',
+        'risk': 1,
+        'return_range': '2-8%',
+        'icon': 'mdi:shield-check',
+        'color': 'violet'
+    },
+    'liquidity_cycle': {
+        'name': 'Liquidity Cycle',
+        'description': 'Credit conditions, financials',
+        'risk': 4,
+        'return_range': '6-22%',
+        'icon': 'mdi:chart-line',
         'color': 'red'
     }
 }
+
+# Strategy order for display
+STRATEGY_ORDER = [
+    'monetary_policy',
+    'inflation_hedge',
+    'growth_expansion',
+    'defensive_quality',
+    'liquidity_cycle'
+]
 
 
 def create_risk_indicator(risk_level):
@@ -114,7 +123,8 @@ def create_strategy_card(strategy_id, strategy_info):
                                     dmc.Text(
                                         strategy_info['name'],
                                         fw=600,
-                                        c="white"
+                                        c="white",
+                                        size="sm"
                                     ),
                                 ]
                             ),
@@ -132,7 +142,7 @@ def create_strategy_card(strategy_id, strategy_info):
                     # Description
                     dmc.Text(
                         strategy_info['description'],
-                        size="sm",
+                        size="xs",
                         c="dimmed"
                     ),
 
@@ -163,23 +173,11 @@ def create_strategy_card(strategy_id, strategy_info):
                         ]
                     ),
 
-                    # Confidence level and customize button
+                    # Customize button
                     dmc.Group(
-                        justify="space-between",
+                        justify="flex-end",
                         mt="xs",
                         children=[
-                            dmc.Stack(
-                                gap=2,
-                                children=[
-                                    dmc.Text("Confidence", size="xs", c="dimmed"),
-                                    dmc.Text(
-                                        id={"type": "strategy-confidence", "index": strategy_id},
-                                        size="sm",
-                                        c="white",
-                                        children="50%"
-                                    ),
-                                ]
-                            ),
                             dmc.Button(
                                 "Customize",
                                 id={"type": "strategy-customize-btn", "index": strategy_id},
@@ -197,7 +195,7 @@ def create_strategy_card(strategy_id, strategy_info):
 
 
 def create_strategy_selector():
-    """Create the strategy selector component with all 5 strategy cards."""
+    """Create the strategy selector component with all 5 macro strategy cards."""
     return dmc.Paper(
         p="md",
         radius="md",
@@ -207,12 +205,12 @@ def create_strategy_selector():
                 justify="space-between",
                 mb="md",
                 children=[
-                    dmc.Title("Investment Strategy", order=4, c="white"),
+                    dmc.Title("Macro Strategy", order=4, c="white"),
                     dmc.Text(
                         id="current-strategy-text",
                         size="sm",
                         c="dimmed",
-                        children="Current: Balanced"
+                        children="Current: Monetary Policy"
                     ),
                 ]
             ),
@@ -222,15 +220,15 @@ def create_strategy_selector():
                 cols={"base": 1, "sm": 2, "lg": 5},
                 spacing="md",
                 children=[
-                    create_strategy_card(strategy_id, strategy_info)
-                    for strategy_id, strategy_info in STRATEGIES.items()
+                    create_strategy_card(strategy_id, STRATEGIES[strategy_id])
+                    for strategy_id in STRATEGY_ORDER
                 ]
             ),
 
             # Hidden input to store selected strategy
             dmc.TextInput(
                 id="selected-strategy-input",
-                value="balanced",
+                value="monetary_policy",
                 style={"display": "none"}
             ),
         ]

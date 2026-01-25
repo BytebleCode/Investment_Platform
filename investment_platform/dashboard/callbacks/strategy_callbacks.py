@@ -1,7 +1,7 @@
 """
 Strategy Callbacks
 
-Handles strategy selection and customization.
+Handles strategy selection and customization for macro strategies.
 """
 from dash import callback, Output, Input, State, no_update, ctx, ALL, MATCH
 from dash.exceptions import PreventUpdate
@@ -10,6 +10,23 @@ from dash_iconify import DashIconify
 import requests
 
 API_BASE = "http://localhost:5000/api"
+
+# Macro strategy order and names
+STRATEGY_ORDER = [
+    'monetary_policy',
+    'inflation_hedge',
+    'growth_expansion',
+    'defensive_quality',
+    'liquidity_cycle'
+]
+
+STRATEGY_NAMES = {
+    'monetary_policy': 'Monetary Policy',
+    'inflation_hedge': 'Inflation Hedge',
+    'growth_expansion': 'Growth Expansion',
+    'defensive_quality': 'Defensive Quality',
+    'liquidity_cycle': 'Liquidity Cycle'
+}
 
 
 def register_strategy_callbacks(app):
@@ -34,9 +51,9 @@ def register_strategy_callbacks(app):
 
         # Determine selected strategy
         if portfolio_data:
-            selected = portfolio_data.get('strategy', 'balanced')
+            selected = portfolio_data.get('strategy', 'monetary_policy')
         else:
-            selected = current_strategy or 'balanced'
+            selected = current_strategy or 'monetary_policy'
 
         # If a card was clicked, update selection
         if triggered and isinstance(triggered, dict) and triggered.get('type') == 'strategy-card':
@@ -54,14 +71,11 @@ def register_strategy_callbacks(app):
                 except Exception as e:
                     print(f"Error updating strategy: {e}")
 
-        # Strategy order
-        strategies = ['conservative', 'growth', 'value', 'balanced', 'aggressive']
-
         # Generate badge styles (show/hide based on selection)
         badge_styles = []
         card_styles = []
 
-        for strategy_id in strategies:
+        for strategy_id in STRATEGY_ORDER:
             if strategy_id == selected:
                 badge_styles.append({"display": "block"})
                 card_styles.append({
@@ -109,14 +123,7 @@ def register_strategy_callbacks(app):
         if not strategy_id:
             raise PreventUpdate
 
-        # Strategy names
-        strategy_names = {
-            'conservative': 'Conservative',
-            'growth': 'Growth',
-            'value': 'Value',
-            'balanced': 'Balanced',
-            'aggressive': 'Aggressive'
-        }
+        strategy_name = STRATEGY_NAMES.get(strategy_id, strategy_id.replace('_', ' ').title())
 
         # Load current customization from API
         try:
@@ -129,7 +136,7 @@ def register_strategy_callbacks(app):
                 return (
                     True,  # Open modal
                     strategy_id,
-                    f"Customize {strategy_names.get(strategy_id, strategy_id.title())} Strategy",
+                    f"Customize {strategy_name}",
                     data.get('confidence_level', 50),
                     data.get('trade_frequency', 'medium'),
                     data.get('max_position_size', 15),
@@ -145,7 +152,7 @@ def register_strategy_callbacks(app):
         return (
             True,
             strategy_id,
-            f"Customize {strategy_names.get(strategy_id, strategy_id.title())} Strategy",
+            f"Customize {strategy_name}",
             50, 'medium', 15, 10, 20, True, True
         )
 
@@ -186,6 +193,8 @@ def register_strategy_callbacks(app):
         if not n_clicks or not strategy_id:
             raise PreventUpdate
 
+        strategy_name = STRATEGY_NAMES.get(strategy_id, strategy_id.replace('_', ' ').title())
+
         try:
             response = requests.put(
                 f"{API_BASE}/strategies/customizations/{strategy_id}",
@@ -204,7 +213,7 @@ def register_strategy_callbacks(app):
             if response.status_code == 200:
                 notification = dmc.Notification(
                     title="Strategy Updated",
-                    message=f"{strategy_id.title()} customization saved",
+                    message=f"{strategy_name} customization saved",
                     color="green",
                     icon=DashIconify(icon="mdi:check"),
                     action="show",
