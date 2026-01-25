@@ -4,7 +4,7 @@ Portfolio API Routes
 Endpoints for managing portfolio state including settings, cash, and reset.
 """
 from flask import Blueprint, jsonify, request
-from app import db
+from app.database import is_csv_backend, get_csv_storage, get_scoped_session
 from app.models import PortfolioState, Holdings, TradesHistory
 
 portfolio_bp = Blueprint('portfolio', __name__)
@@ -17,7 +17,55 @@ def get_settings():
     Returns current portfolio configuration.
     """
     portfolio = PortfolioState.get_or_create()
+    if isinstance(portfolio, dict):
+        return jsonify(portfolio)
     return jsonify(portfolio.to_dict())
+
+
+@portfolio_bp.route('/initialize', methods=['POST'])
+def initialize_portfolio():
+    """
+    POST /api/portfolio/initialize
+    Initialize or reinitialize the portfolio with default settings.
+    """
+    data = request.get_json() or {}
+    user_id = data.get('user_id', 'default')
+    initial_value = data.get('initial_value', 100000.00)
+
+    if is_csv_backend():
+        storage = get_csv_storage()
+        portfolio = storage.get_portfolio(user_id)
+        if portfolio:
+            storage.update_portfolio(
+                user_id,
+                initial_value=initial_value,
+                current_cash=initial_value,
+                is_initialized=1,
+                realized_gains=0
+            )
+        else:
+            portfolio = storage.create_portfolio(
+                user_id,
+                initial_value=initial_value,
+                current_cash=initial_value,
+                is_initialized=1
+            )
+        return jsonify({
+            'message': 'Portfolio initialized',
+            'portfolio': storage.get_portfolio(user_id)
+        })
+    else:
+        from app import db
+        portfolio = PortfolioState.get_or_create(user_id)
+        portfolio.initial_value = initial_value
+        portfolio.current_cash = initial_value
+        portfolio.is_initialized = 1
+        portfolio.realized_gains = 0
+        db.session.commit()
+        return jsonify({
+            'message': 'Portfolio initialized',
+            'portfolio': portfolio.to_dict()
+        })
 
 
 @portfolio_bp.route('/settings', methods=['PUT'])
@@ -73,19 +121,34 @@ def reset_portfolio():
     POST /api/portfolio/reset
     Resets portfolio to initial state, clearing all holdings and trades.
     """
-    user_id = request.args.get('user_id', 'default')
+    data = request.get_json() or {}
+    user_id = data.get('user_id', request.args.get('user_id', 'default'))
 
     try:
         # Delete holdings and trades
         Holdings.delete_user_holdings(user_id)
         TradesHistory.delete_user_trades(user_id)
 
-        # Reset portfolio state
-        portfolio = PortfolioState.get_or_create(user_id)
-        portfolio.reset()
-
-        db.session.commit()
-        return jsonify({'message': 'Portfolio reset successfully', 'portfolio': portfolio.to_dict()})
+        if is_csv_backend():
+            storage = get_csv_storage()
+            portfolio = storage.get_portfolio(user_id)
+            if portfolio:
+                storage.update_portfolio(
+                    user_id,
+                    current_cash=portfolio.get('initial_value', 100000),
+                    realized_gains=0,
+                    is_initialized=0
+                )
+            portfolio = storage.get_portfolio(user_id)
+            return jsonify({'message': 'Portfolio reset successfully', 'portfolio': portfolio})
+        else:
+            from app import db
+            portfolio = PortfolioState.get_or_create(user_id)
+            portfolio.reset()
+            db.session.commit()
+            return jsonify({'message': 'Portfolio reset successfully', 'portfolio': portfolio.to_dict()})
     except Exception as e:
-        db.session.rollback()
+        if not is_csv_backend():
+            from app import db
+            db.session.rollback()
         return jsonify({'error': str(e)}), 500

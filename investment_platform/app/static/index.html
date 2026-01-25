@@ -202,7 +202,7 @@
         }
 
         async function loadPortfolio() {
-            const data = await fetchAPI('/portfolio/');
+            const data = await fetchAPI('/portfolio/settings');
             const el = document.getElementById('portfolio-summary');
             if (data.error) {
                 el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
@@ -216,12 +216,8 @@
                     <div class="value">${formatMoney(data.current_cash)}</div>
                 </div>
                 <div class="status-item">
-                    <div class="label">Holdings Value</div>
-                    <div class="value">${formatMoney(data.holdings_value || 0)}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">Total Value</div>
-                    <div class="value">${formatMoney(totalValue)}</div>
+                    <div class="label">Initial Value</div>
+                    <div class="value">${formatMoney(data.initial_value)}</div>
                 </div>
                 <div class="status-item">
                     <div class="label">Realized Gains</div>
@@ -231,11 +227,15 @@
                     <div class="label">Strategy</div>
                     <div class="value ok">${data.current_strategy || 'N/A'}</div>
                 </div>
+                <div class="status-item">
+                    <div class="label">Initialized</div>
+                    <div class="value ${data.is_initialized ? 'ok' : 'warning'}">${data.is_initialized ? 'Yes' : 'No'}</div>
+                </div>
             `;
         }
 
         async function loadHoldings() {
-            const data = await fetchAPI('/holdings/');
+            const data = await fetchAPI('/holdings');
             const el = document.getElementById('holdings-list');
             if (data.error) {
                 el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
@@ -261,7 +261,7 @@
         }
 
         async function loadTrades() {
-            const data = await fetchAPI('/trades/');
+            const data = await fetchAPI('/trades');
             const el = document.getElementById('trades-list');
             if (data.error) {
                 el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
@@ -289,24 +289,25 @@
         }
 
         async function loadStrategies() {
-            const data = await fetchAPI('/strategies/');
+            const data = await fetchAPI('/strategies/customizations');
             const el = document.getElementById('strategies-list');
             if (data.error) {
                 el.innerHTML = `<div class="error">Error: ${data.error}</div>`;
                 return;
             }
-            if (!data.strategies || data.strategies.length === 0) {
-                el.innerHTML = '<p style="color:#888">No strategies available</p>';
+            if (!data.customizations || data.customizations.length === 0) {
+                el.innerHTML = '<p style="color:#888">No strategy customizations yet. Initialize portfolio to create defaults.</p>';
                 return;
             }
             el.innerHTML = `
                 <table>
-                    <tr><th>Name</th><th>Risk</th><th>Description</th></tr>
-                    ${data.strategies.map(s => `
+                    <tr><th>Strategy</th><th>Confidence</th><th>Frequency</th><th>Max Position</th></tr>
+                    ${data.customizations.map(s => `
                         <tr>
-                            <td><strong>${s.name}</strong></td>
-                            <td>${s.risk_level || 'N/A'}</td>
-                            <td style="color:#888">${s.description || ''}</td>
+                            <td><strong>${s.strategy_id}</strong></td>
+                            <td>${s.confidence_level}%</td>
+                            <td>${s.trade_frequency}</td>
+                            <td>${s.max_position_size}%</td>
                         </tr>
                     `).join('')}
                 </table>

@@ -4,7 +4,7 @@ Holdings API Routes
 Endpoints for managing stock holdings.
 """
 from flask import Blueprint, jsonify, request
-from app import db
+from app.database import is_csv_backend
 from app.models import Holdings
 
 holdings_bp = Blueprint('holdings', __name__)
@@ -19,9 +19,15 @@ def get_holdings():
     user_id = request.args.get('user_id', 'default')
     holdings = Holdings.get_user_holdings(user_id)
 
+    # CSV backend returns dicts, DB backend returns objects
+    if holdings and isinstance(holdings[0], dict):
+        holdings_list = holdings
+    else:
+        holdings_list = [h.to_dict() for h in holdings]
+
     return jsonify({
-        'holdings': [h.to_dict() for h in holdings],
-        'total_count': len(holdings)
+        'holdings': holdings_list,
+        'total_count': len(holdings_list)
     })
 
 

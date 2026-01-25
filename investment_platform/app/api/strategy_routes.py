@@ -4,7 +4,7 @@ Strategy API Routes
 Endpoints for managing investment strategy customizations.
 """
 from flask import Blueprint, jsonify, request
-from app import db
+from app.database import is_csv_backend
 from app.models import StrategyCustomization
 
 strategy_bp = Blueprint('strategies', __name__)
@@ -19,8 +19,14 @@ def get_customizations():
     user_id = request.args.get('user_id', 'default')
     customizations = StrategyCustomization.get_user_customizations(user_id)
 
+    # CSV backend returns dicts, DB backend returns objects
+    if customizations and isinstance(customizations[0], dict):
+        customizations_list = customizations
+    else:
+        customizations_list = [c.to_dict() for c in customizations]
+
     return jsonify({
-        'customizations': [c.to_dict() for c in customizations]
+        'customizations': customizations_list
     })
 
 

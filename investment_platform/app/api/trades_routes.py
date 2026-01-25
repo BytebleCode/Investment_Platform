@@ -5,7 +5,7 @@ Endpoints for recording and retrieving trade history.
 """
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timezone
-from app import db
+from app.database import is_csv_backend
 from app.models import TradesHistory
 
 trades_bp = Blueprint('trades', __name__)
@@ -31,8 +31,14 @@ def get_trades():
     else:
         trades = TradesHistory.get_user_trades(user_id, limit)
 
+    # CSV backend returns dicts, DB backend returns objects
+    if trades and isinstance(trades[0], dict):
+        trades_list = trades
+    else:
+        trades_list = [t.to_dict() for t in trades]
+
     return jsonify({
-        'trades': [t.to_dict() for t in trades],
+        'trades': trades_list,
         'total_count': TradesHistory.get_trade_count(user_id)
     })
 
