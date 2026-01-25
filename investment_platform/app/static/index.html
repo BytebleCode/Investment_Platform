@@ -1369,6 +1369,115 @@
             color: var(--accent-red);
         }
 
+        .btn-icon.weights {
+            border-color: rgba(0, 245, 255, 0.3);
+            color: var(--accent-cyan);
+        }
+
+        .btn-icon.weights:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 245, 255, 0.1);
+        }
+
+        /* Weights Modal Styles */
+        .weights-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .weights-total {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .weights-total-number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .weights-total-number.warning {
+            color: var(--accent-amber);
+        }
+
+        .weights-total-number.error {
+            color: var(--accent-red);
+        }
+
+        .weights-container {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .weight-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .weight-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .weight-item-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .weight-item-value {
+            font-weight: 700;
+            color: var(--accent-cyan);
+            font-size: 1rem;
+            min-width: 50px;
+            text-align: right;
+        }
+
+        .weight-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .weight-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+        }
+
+        .weight-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            cursor: pointer;
+            border: none;
+        }
+
         /* Section Header with Button */
         .section-header-with-action {
             display: flex;
@@ -1937,6 +2046,38 @@
         </div>
     </div>
 
+    <!-- Sector Weights Modal -->
+    <div class="modal-overlay" id="weights-modal">
+        <div class="modal-card" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="weights-modal-title">Adjust Sector Weights</h3>
+                <button class="modal-close" onclick="closeWeightsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="weights-strategy-id" value="">
+
+                <div class="weights-header">
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 15px;">
+                        Adjust the allocation weight for each sector. Weights should sum to 100%.
+                    </p>
+                    <div class="weights-total" id="weights-total">
+                        <span>Total:</span>
+                        <span id="weights-total-value" class="weights-total-number">100%</span>
+                    </div>
+                </div>
+
+                <div class="weights-container" id="weights-sliders-container">
+                    <!-- Weight sliders will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="resetWeights()">Reset to Default</button>
+                <button class="btn btn-secondary" onclick="closeWeightsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveWeights()">Save Weights</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ===== PARTICLE SYSTEM =====
         const canvas = document.getElementById('particle-canvas');
@@ -2464,6 +2605,7 @@
                         </div>
                     </div>
                     <div class="strategy-actions" onclick="event.stopPropagation()">
+                        <button class="btn-icon weights" onclick="openWeightsModal('${s.strategy_id}', '${s.name}')">Weights</button>
                         ${isSystem ? `
                             <button class="btn-icon" onclick="cloneStrategy('${s.strategy_id}', '${s.name}')">Clone</button>
                         ` : `
@@ -2567,6 +2709,162 @@
 
         function closeStrategyModal() {
             document.getElementById('strategy-modal').classList.remove('visible');
+        }
+
+        // ===== SECTOR WEIGHTS MODAL =====
+        let currentWeights = {};
+        let defaultWeights = {};
+
+        const SECTOR_NAMES = {
+            'financials.banks': 'Banks',
+            'financials.asset_managers': 'Asset Managers',
+            'financials.exchanges': 'Exchanges',
+            'financials.payments': 'Payments',
+            'financials.insurance': 'Insurance',
+            'utilities.electric': 'Electric Utilities',
+            'utilities.gas': 'Gas Utilities',
+            'energy.integrated': 'Integrated Energy',
+            'energy.exploration': 'E&P',
+            'energy.refining': 'Refining',
+            'materials.mining': 'Mining',
+            'materials.chemicals': 'Chemicals',
+            'materials.agriculture': 'Agriculture',
+            'technology.semiconductors': 'Semiconductors',
+            'technology.software': 'Software',
+            'technology.internet': 'Internet',
+            'technology.hardware': 'Hardware',
+            'healthcare.pharma': 'Pharma',
+            'healthcare.services': 'Healthcare Services',
+            'healthcare.devices': 'Medical Devices',
+            'consumer_staples.food': 'Food & Beverage',
+            'consumer_staples.household': 'Household',
+            'consumer_discretionary.retail': 'Retail',
+            'consumer_discretionary.restaurants': 'Restaurants',
+            'industrials.machinery': 'Machinery',
+            'industrials.aerospace': 'Aerospace',
+            'industrials.transport': 'Transport',
+            'real_estate.data_centers': 'Data Centers',
+            'real_estate.industrial': 'Industrial REIT',
+            'real_estate.residential': 'Residential REIT',
+            'futures.treasury': 'Treasury Futures',
+            'futures.energy': 'Energy Futures',
+            'futures.metals': 'Metals (Gold)',
+            'futures.agriculture': 'Agri Futures',
+            'currency.pairs': 'Currency',
+            'crypto.major': 'Crypto Proxy'
+        };
+
+        async function openWeightsModal(strategyId, strategyName) {
+            document.getElementById('weights-modal-title').textContent = `Adjust Weights: ${strategyName}`;
+            document.getElementById('weights-strategy-id').value = strategyId;
+
+            // Fetch strategy allocation
+            const data = await fetchAPI(`/strategies/${strategyId}/allocation`);
+            if (data.error) {
+                showMessage('Error loading weights: ' + data.error, true);
+                return;
+            }
+
+            // Store default and current weights
+            defaultWeights = { ...data.sector_allocation };
+            currentWeights = { ...data.sector_allocation };
+
+            renderWeightSliders();
+            updateWeightsTotal();
+
+            document.getElementById('weights-modal').classList.add('visible');
+        }
+
+        function renderWeightSliders() {
+            const container = document.getElementById('weights-sliders-container');
+            container.innerHTML = '';
+
+            const sortedSectors = Object.entries(currentWeights)
+                .sort((a, b) => b[1] - a[1]);
+
+            sortedSectors.forEach(([sector, weight]) => {
+                const pct = Math.round(weight * 100);
+                const name = SECTOR_NAMES[sector] || sector.split('.').pop().replace('_', ' ');
+
+                const item = document.createElement('div');
+                item.className = 'weight-item';
+                item.innerHTML = `
+                    <div class="weight-item-header">
+                        <span class="weight-item-name">${name}</span>
+                        <span class="weight-item-value" id="weight-val-${sector.replace('.', '-')}">${pct}%</span>
+                    </div>
+                    <input type="range" class="weight-slider" min="0" max="50" value="${pct}"
+                           data-sector="${sector}"
+                           oninput="updateWeight('${sector}', this.value)">
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function updateWeight(sector, value) {
+            const pct = parseInt(value);
+            currentWeights[sector] = pct / 100;
+
+            // Update display
+            const id = `weight-val-${sector.replace('.', '-')}`;
+            document.getElementById(id).textContent = `${pct}%`;
+
+            updateWeightsTotal();
+        }
+
+        function updateWeightsTotal() {
+            const total = Object.values(currentWeights).reduce((sum, w) => sum + w, 0);
+            const totalPct = Math.round(total * 100);
+
+            const display = document.getElementById('weights-total-value');
+            display.textContent = `${totalPct}%`;
+
+            // Color based on total
+            display.classList.remove('warning', 'error');
+            if (totalPct < 95 || totalPct > 105) {
+                display.classList.add('error');
+            } else if (totalPct !== 100) {
+                display.classList.add('warning');
+            }
+        }
+
+        function resetWeights() {
+            currentWeights = { ...defaultWeights };
+            renderWeightSliders();
+            updateWeightsTotal();
+        }
+
+        function closeWeightsModal() {
+            document.getElementById('weights-modal').classList.remove('visible');
+        }
+
+        async function saveWeights() {
+            const strategyId = document.getElementById('weights-strategy-id').value;
+            const total = Object.values(currentWeights).reduce((sum, w) => sum + w, 0);
+
+            if (total < 0.95 || total > 1.05) {
+                showMessage('Weights must sum to approximately 100%', true);
+                return;
+            }
+
+            // Normalize weights to sum to exactly 1.0
+            const normalized = {};
+            Object.entries(currentWeights).forEach(([sector, weight]) => {
+                normalized[sector] = weight / total;
+            });
+
+            const data = await fetchAPI(`/strategies/${strategyId}/weights`, {
+                method: 'PUT',
+                body: JSON.stringify({ sector_allocation: normalized })
+            });
+
+            if (data.error) {
+                showMessage('Error saving weights: ' + data.error, true);
+            } else {
+                showMessage('Weights saved successfully!');
+                closeWeightsModal();
+                loadStrategies();
+            }
         }
 
         function resetStrategyForm() {

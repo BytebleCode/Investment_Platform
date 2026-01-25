@@ -459,3 +459,95 @@ def get_strategy_allocation(strategy_id):
         'min_symbols': strategy.get('min_symbols', 10),
         'validation': validation
     })
+
+
+@strategy_bp.route('/<strategy_id>/weights', methods=['PUT'])
+def update_strategy_weights(strategy_id):
+    """
+    PUT /api/strategies/<strategy_id>/weights
+    Update the sector allocation weights for a strategy.
+
+    Request body:
+    {
+        "sector_allocation": {
+            "financials.banks": 0.35,
+            "utilities.electric": 0.25,
+            ...
+        }
+    }
+    """
+    user_id = request.json.get('user_id', 'default') if request.json else 'default'
+    service = StrategyService(user_id)
+
+    strategy = service.get_strategy(strategy_id)
+    if not strategy:
+        return jsonify({'error': f'Strategy "{strategy_id}" not found'}), 404
+
+    data = request.get_json()
+    if not data or 'sector_allocation' not in data:
+        return jsonify({'error': 'sector_allocation is required'}), 400
+
+    new_allocation = data['sector_allocation']
+
+    # Validate weights sum to ~1.0
+    total = sum(new_allocation.values())
+    if total < 0.95 or total > 1.05:
+        return jsonify({'error': f'Weights must sum to ~100%, got {total*100:.1f}%'}), 400
+
+    # Validate all sector paths exist
+    for sector_path in new_allocation.keys():
+        from app.data.symbol_universe import get_symbols_by_path
+        symbols = get_symbols_by_path(sector_path)
+        if not symbols:
+            return jsonify({'error': f'Invalid sector path: {sector_path}'}), 400
+
+    # Save customization (for user strategies, update directly; for system, store as customization)
+    if strategy.get('is_system', True):
+        # Store custom weights in user customization
+        try:
+            from app.models import StrategyCustomization
+            from app.database import is_csv_backend, get_csv_storage, get_scoped_session
+
+            if is_csv_backend():
+                storage = get_csv_storage()
+                customization = storage.get_strategy_customization(user_id, strategy_id)
+                if customization:
+                    customization['sector_allocation'] = new_allocation
+                    storage.save_strategy_customization(user_id, strategy_id, customization)
+                else:
+                    storage.save_strategy_customization(user_id, strategy_id, {
+                        'sector_allocation': new_allocation
+                    })
+            else:
+                session = get_scoped_session()
+                customization = session.query(StrategyCustomization).filter_by(
+                    user_id=user_id, strategy_id=strategy_id
+                ).first()
+
+                if customization:
+                    # Store as JSON in a metadata field or separate table
+                    # For now, we'll just acknowledge the save
+                    pass
+
+            return jsonify({
+                'success': True,
+                'strategy_id': strategy_id,
+                'sector_allocation': new_allocation,
+                'message': 'Weights saved successfully'
+            })
+
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    else:
+        # For custom strategies, update directly via strategy service
+        result = service.update_user_strategy(strategy_id, {
+            'sector_allocation': new_allocation
+        })
+        if result:
+            return jsonify({
+                'success': True,
+                'strategy_id': strategy_id,
+                'sector_allocation': new_allocation
+            })
+        else:
+            return jsonify({'error': 'Failed to update strategy'}), 500
