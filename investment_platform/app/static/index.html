@@ -3525,9 +3525,6 @@
         }
 
         // Store previous prices for calculating change
-        let previousPrices = {};
-        let initialPricesLoaded = false;
-
         async function updateTicker() {
             const tickerSymbols = [
                 { id: 'btc', symbol: 'BTC-USD' },
@@ -3540,26 +3537,17 @@
                 { id: 'nvda', symbol: 'NVDA' }
             ];
 
-            const symbols = tickerSymbols.map(t => t.symbol).join(',');
-
             try {
-                const response = await fetch(`${API_BASE}/market/prices?symbols=${symbols}`);
+                const response = await fetch(`${API_BASE}/market/ticker`);
                 const data = await response.json();
 
-                if (data.prices) {
+                if (data.ticker) {
                     tickerSymbols.forEach(t => {
-                        const priceData = data.prices[t.symbol];
-                        if (priceData && priceData.price) {
-                            const currentPrice = priceData.price;
-                            const prevPrice = previousPrices[t.symbol] || currentPrice;
-
-                            // Calculate change - on first load show 0%, after that show actual change
-                            let pctChange = 0;
-                            if (initialPricesLoaded) {
-                                pctChange = ((currentPrice - prevPrice) / prevPrice) * 100;
-                            }
-
-                            previousPrices[t.symbol] = currentPrice;
+                        const tickerData = data.ticker[t.symbol];
+                        if (tickerData && tickerData.price) {
+                            const currentPrice = tickerData.price;
+                            // Use 5-day MA comparison from server
+                            const pctChange = tickerData.change_pct || 0;
 
                             // Update main ticker items
                             const priceEl = document.getElementById(`ticker-${t.id}-price`);
@@ -3586,10 +3574,9 @@
                             }
                         }
                     });
-                    initialPricesLoaded = true;
                 }
             } catch (error) {
-                console.error('Error fetching ticker prices:', error);
+                console.error('Error fetching ticker data:', error);
             }
         }
 

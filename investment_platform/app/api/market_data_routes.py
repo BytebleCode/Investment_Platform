@@ -157,6 +157,80 @@ def get_prices():
     })
 
 
+@market_data_bp.route('/ticker', methods=['GET'])
+def get_ticker_data():
+    """
+    GET /api/market/ticker
+    Returns ticker data with 5-day moving average comparison.
+
+    Query params:
+        - symbols: Comma-separated list of symbols (optional, defaults to major indices/stocks)
+
+    Returns current price and percentage vs 5-day moving average for each symbol.
+    """
+    default_symbols = ['BTC-USD', 'ETH-USD', '^GSPC', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA']
+
+    symbols_param = request.args.get('symbols', '')
+    if symbols_param:
+        symbols = [s.strip().upper() for s in symbols_param.split(',')]
+    else:
+        symbols = default_symbols
+
+    service = get_market_data_service()
+    end_date = date.today()
+    start_date = end_date - timedelta(days=10)  # Fetch extra days to ensure 5 trading days
+
+    results = {}
+    for symbol in symbols:
+        try:
+            # Get current price
+            price_data = service.get_current_price(symbol)
+            current_price = price_data.get('price')
+
+            if current_price is None:
+                results[symbol] = {'error': 'No price data'}
+                continue
+
+            # Get historical data for 5-day MA
+            df = service.get_price_data(symbol, start_date, end_date)
+
+            if df.empty or len(df) < 2:
+                # No historical data - just show price with 0% change
+                results[symbol] = {
+                    'price': current_price,
+                    'change_pct': 0,
+                    'ma5': current_price,
+                    'source': price_data.get('source', 'unknown')
+                }
+                continue
+
+            # Calculate 5-day moving average from closing prices
+            close_col = 'adj_close' if 'adj_close' in df.columns else 'close'
+            closes = df[close_col].dropna().tail(5)  # Last 5 trading days
+
+            if len(closes) > 0:
+                ma5 = closes.mean()
+                change_pct = ((current_price - ma5) / ma5) * 100
+            else:
+                ma5 = current_price
+                change_pct = 0
+
+            results[symbol] = {
+                'price': round(current_price, 2),
+                'change_pct': round(change_pct, 2),
+                'ma5': round(ma5, 2),
+                'source': price_data.get('source', 'unknown')
+            }
+
+        except Exception as e:
+            results[symbol] = {'error': str(e)}
+
+    return jsonify({
+        'ticker': results,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    })
+
+
 @market_data_bp.route('/symbols', methods=['GET'])
 def get_symbols():
     """
