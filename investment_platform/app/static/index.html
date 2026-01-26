@@ -2300,13 +2300,13 @@
             <div class="section-header">
                 <h2 class="section-title">Portfolio Dashboard</h2>
                 <div class="view-toggle">
-                    <button class="view-btn active" onclick="showView('portfolio')">Portfolio</button>
-                    <button class="view-btn" onclick="showView('backtest')">Backtesting</button>
+                    <button class="view-btn" onclick="showView('portfolio')">Portfolio</button>
+                    <button class="view-btn active" onclick="showView('backtest')">Backtesting</button>
                 </div>
             </div>
 
             <!-- Portfolio View -->
-            <div id="portfolio-view">
+            <div id="portfolio-view" style="display: none;">
                 <!-- Stats Row -->
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -2432,7 +2432,7 @@
             </div>
 
             <!-- Backtest View -->
-            <div id="backtest-view" class="backtest-panel">
+            <div id="backtest-view" class="backtest-panel visible">
                 <div class="glass-card">
                     <div class="card-header">
                         <h3 class="card-title">Strategy Backtester</h3>
