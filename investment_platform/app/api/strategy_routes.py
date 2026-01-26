@@ -13,7 +13,7 @@ from app.data.strategies import STRATEGIES, STRATEGY_IDS, DEFAULT_CUSTOMIZATION
 from app.services.strategy_service import StrategyService
 from app.services.available_symbols import search_symbols, get_all_symbols
 from app.services.symbol_selector import get_sector_coverage_report, validate_strategy_allocation
-from app.data.symbol_universe import SYMBOL_UNIVERSE, SECTOR_METADATA, get_all_sectors
+from app.data.symbol_universe import SYMBOL_UNIVERSE, SECTOR_METADATA, get_all_sectors, get_sector_for_symbol
 from app.services.allocation_service import AllocationService, get_industry_tree, search_industries
 from app.services.component_params_service import ComponentParamsService
 from app.services.rules_engine import RulesEngine, get_rule_templates
@@ -150,6 +150,61 @@ def delete_strategy(strategy_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@strategy_bp.route('/<strategy_id>/sectors', methods=['GET'])
+def get_strategy_sectors(strategy_id):
+    """
+    GET /api/strategies/<strategy_id>/sectors
+    Get sector breakdown for a strategy's symbols.
+    """
+    user_id = request.args.get('user_id', 'default')
+    service = StrategyService(user_id)
+    strategy = service.get_strategy(strategy_id)
+
+    if not strategy:
+        return jsonify({'error': f'Strategy not found: {strategy_id}'}), 404
+
+    symbols = strategy.get('stocks', [])
+
+    # Calculate sector breakdown
+    sector_breakdown = {}
+    for symbol in symbols:
+        sector, subsector = get_sector_for_symbol(symbol)
+        if sector:
+            if sector not in sector_breakdown:
+                metadata = SECTOR_METADATA.get(sector, {})
+                sector_breakdown[sector] = {
+                    'name': metadata.get('name', sector.title()),
+                    'color': metadata.get('color', '#888888'),
+                    'symbols': [],
+                    'count': 0
+                }
+            sector_breakdown[sector]['symbols'].append(symbol)
+            sector_breakdown[sector]['count'] += 1
+
+    # Convert to list with percentages
+    total_symbols = len(symbols)
+    sectors = []
+    for sector_key, sector_data in sector_breakdown.items():
+        percentage = round((sector_data['count'] / total_symbols) * 100, 1) if total_symbols > 0 else 0
+        sectors.append({
+            'sector': sector_key,
+            'name': sector_data['name'],
+            'color': sector_data['color'],
+            'symbols': sector_data['symbols'],
+            'count': sector_data['count'],
+            'percentage': percentage
+        })
+
+    # Sort by percentage descending
+    sectors.sort(key=lambda x: x['percentage'], reverse=True)
+
+    return jsonify({
+        'strategy_id': strategy_id,
+        'total_symbols': total_symbols,
+        'sectors': sectors
+    })
 
 
 @strategy_bp.route('/<strategy_id>/clone', methods=['POST'])
