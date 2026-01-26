@@ -2610,12 +2610,10 @@
                 const isProfit = pair.sell.price > pair.buy.price;
 
                 // Create sparse array with nulls except at buy and sell points
-                // Position both points relative to buy portfolio value, offset sell by profit
-                // This makes line direction match profit/loss visually
+                // Use actual trade values: price × quantity
                 const lineData = new Array(labels.length).fill(null);
-                const buyValue = pair.buy.value;
-                // Offset sell point by the actual profit to show trade result visually
-                const sellValue = buyValue + pair.profit;
+                const buyValue = pair.buy.price * pair.quantity;   // Cost of purchase
+                const sellValue = pair.sell.price * pair.quantity; // Proceeds from sale
                 if (buyIdx !== -1) lineData[buyIdx] = buyValue;
                 if (sellIdx !== -1) lineData[sellIdx] = sellValue;
 
