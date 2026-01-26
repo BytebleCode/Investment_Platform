@@ -97,6 +97,7 @@ class UserStrategyStock(Base):
             )
             session.add(stock)
 
+        session.commit()
         return True
 
     @classmethod
@@ -116,6 +117,7 @@ class UserStrategyStock(Base):
 
         if existing:
             existing.weight = weight
+            session.commit()
             return existing
 
         stock = cls(
@@ -125,6 +127,7 @@ class UserStrategyStock(Base):
             weight=weight
         )
         session.add(stock)
+        session.commit()
         return stock
 
     @classmethod
@@ -139,6 +142,7 @@ class UserStrategyStock(Base):
             strategy_id=strategy_id,
             symbol=symbol.upper()
         ).delete()
+        session.commit()
         return result > 0
 
     @classmethod
@@ -150,4 +154,5 @@ class UserStrategyStock(Base):
 
         session = get_scoped_session()
         session.query(cls).filter_by(strategy_id=strategy_id).delete()
+        session.commit()
         return True

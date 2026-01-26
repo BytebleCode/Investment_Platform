@@ -196,6 +196,7 @@ class UserStrategy(Base):
         strategy = cls(user_id=user_id, strategy_id=strategy_id, **kwargs)
         strategy.validate()
         session.add(strategy)
+        session.commit()
         return strategy
 
     @classmethod
@@ -215,6 +216,7 @@ class UserStrategy(Base):
                 setattr(strategy, key, value)
         strategy.updated_at = datetime.now(timezone.utc)
         strategy.validate()
+        session.commit()
         return strategy
 
     @classmethod
@@ -234,4 +236,5 @@ class UserStrategy(Base):
         else:
             strategy.is_active = 0
             strategy.updated_at = datetime.now(timezone.utc)
+        session.commit()
         return True
