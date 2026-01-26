@@ -2606,12 +2606,18 @@
             const tradeLineDatasets = pairedTrades.map((pair, idx) => {
                 const buyIdx = dates.findIndex(d => d === pair.buy.date);
                 const sellIdx = dates.findIndex(d => d === pair.sell.date);
-                const isProfit = pair.profit >= 0;
+                // Color based on actual stock profit (sell price vs buy price)
+                const isProfit = pair.sell.price > pair.buy.price;
 
                 // Create sparse array with nulls except at buy and sell points
+                // Position both points relative to buy portfolio value, offset sell by profit
+                // This makes line direction match profit/loss visually
                 const lineData = new Array(labels.length).fill(null);
-                if (buyIdx !== -1) lineData[buyIdx] = pair.buy.value;
-                if (sellIdx !== -1) lineData[sellIdx] = pair.sell.value;
+                const buyValue = pair.buy.value;
+                // Offset sell point by the actual profit to show trade result visually
+                const sellValue = buyValue + pair.profit;
+                if (buyIdx !== -1) lineData[buyIdx] = buyValue;
+                if (sellIdx !== -1) lineData[sellIdx] = sellValue;
 
                 return {
                     label: `${pair.symbol} (${isProfit ? '+' : ''}${pair.profitPct.toFixed(1)}%)`,
