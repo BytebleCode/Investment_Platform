@@ -7,7 +7,6 @@ Integrates with Yahoo Finance via MarketDataService with DB2 caching.
 from flask import Blueprint, jsonify, request
 from datetime import date, datetime, timedelta, timezone
 
-from app import db
 from app.models import MarketDataCache, MarketDataMetadata
 from app.services.market_data_service import get_market_data_service
 from app.data import get_all_symbols, is_valid_symbol

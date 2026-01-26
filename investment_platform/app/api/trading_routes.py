@@ -5,7 +5,6 @@ Endpoints for executing trades and managing the trading engine.
 """
 from flask import Blueprint, jsonify, request
 
-from app import db
 from app.models import PortfolioState, Holdings
 from app.services.trading_engine import (
     TradingEngine, auto_trade, execute_trade,

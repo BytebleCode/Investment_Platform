@@ -109,12 +109,16 @@ def init_db(app=None, database_url=None):
 
     # SQLite doesn't support pool settings
     if not database_url.startswith('sqlite'):
-        engine_kwargs.update({
-            'pool_size': 5,
-            'max_overflow': 10,
-            'pool_timeout': 30,
-            'pool_recycle': 1800,
-        })
+        # Use config values if app provided, otherwise use defaults
+        if app and 'SQLALCHEMY_ENGINE_OPTIONS' in app.config:
+            engine_kwargs.update(app.config['SQLALCHEMY_ENGINE_OPTIONS'])
+        else:
+            engine_kwargs.update({
+                'pool_size': 5,
+                'max_overflow': 10,
+                'pool_timeout': 30,
+                'pool_recycle': 1800,
+            })
 
     _engine = create_engine(database_url, **engine_kwargs)
     _session_factory = sessionmaker(bind=_engine)

@@ -3,7 +3,6 @@ Investment Platform - Flask Application Factory
 """
 import os
 from flask import Flask, send_from_directory
-from flask_cors import CORS
 
 from app.database import init_db, create_all, close_session, get_scoped_session
 
@@ -40,8 +39,9 @@ def create_app(config_class=None):
     # Initialize database
     init_db(app)
 
-    # Initialize CORS
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # Initialize security (includes CORS, session security, headers, rate limiting)
+    from app.security import configure_security
+    configure_security(app)
 
     # Register blueprints
     from app.api.portfolio_routes import portfolio_bp

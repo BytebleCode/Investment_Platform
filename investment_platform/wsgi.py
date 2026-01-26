@@ -18,13 +18,21 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 from app.config import get_config
-from dashboard import create_dash_app
 
 # Create Flask application with environment-based configuration
 flask_app = create_app(get_config())
 
-# Create Dash application integrated with Flask
-dash_app = create_dash_app(flask_app)
+# Try to create Dash app (optional - may not be available)
+dash_app = None
+try:
+    from dashboard import create_dash_app
+    dash_app = create_dash_app(flask_app)
+except ImportError:
+    # Dashboard module not available - running in API-only mode
+    pass
+except Exception:
+    # Dashboard failed to initialize - running in API-only mode
+    pass
 
 # WSGI application entry point
 app = flask_app
