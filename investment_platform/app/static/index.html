@@ -3456,18 +3456,22 @@
             const dates = data.equity_curve.map(p => p.date);
             const isPositive = data.metrics.total_return >= 0;
 
+            // Convert to percent returns from initial value
+            const initialValue = values[0] || data.initial_capital || 100000;
+            const percentReturns = values.map(v => ((v - initialValue) / initialValue) * 100);
+
             const gradient = ctx.createLinearGradient(0, 0, 0, 220);
             gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 159, 0.15)' : 'rgba(255, 45, 85, 0.15)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-            // Draw equity curve only
+            // Draw equity curve as percent returns
             backtestChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Portfolio Value',
-                        data: values,
+                        label: 'Return %',
+                        data: percentReturns,
                         borderColor: isPositive ? '#00FF9F' : '#FF2D55',
                         backgroundColor: gradient,
                         borderWidth: 2,
@@ -3483,14 +3487,23 @@
                         legend: { display: false },
                         tooltip: {
                             backgroundColor: 'rgba(10, 10, 20, 0.95)',
-                            callbacks: { label: (ctx) => 'Portfolio: ' + formatMoney(ctx.raw) }
+                            callbacks: {
+                                label: (ctx) => {
+                                    const pct = ctx.raw.toFixed(2);
+                                    const value = values[ctx.dataIndex];
+                                    return ['Return: ' + (pct >= 0 ? '+' : '') + pct + '%', 'Value: ' + formatMoney(value)];
+                                }
+                            }
                         }
                     },
                     scales: {
                         x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 9 } } },
                         y: {
                             grid: { color: 'rgba(255, 255, 255, 0.03)' },
-                            ticks: { callback: (v) => '$' + (v / 1000).toFixed(0) + 'k', font: { size: 9 } }
+                            ticks: {
+                                callback: (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+                                font: { size: 9 }
+                            }
                         }
                     }
                 }
@@ -3533,18 +3546,16 @@
                 return;
             }
 
-            // Create datasets for connecting lines between buy and sell
+            // Create datasets for connecting lines between buy and sell (as percent returns)
             const tradeLineDatasets = pairedTrades.map((pair, idx) => {
                 const buyIdx = dates.findIndex(d => d === pair.buy.date);
                 const sellIdx = dates.findIndex(d => d === pair.sell.date);
                 const isProfit = pair.sell.price > pair.buy.price;
 
-                // Use actual trade values: price × quantity
+                // Show percent return for the trade (0% at buy, profit% at sell)
                 const lineData = new Array(labels.length).fill(null);
-                const buyValue = pair.buy.price * pair.quantity;
-                const sellValue = pair.sell.price * pair.quantity;
-                if (buyIdx !== -1) lineData[buyIdx] = buyValue;
-                if (sellIdx !== -1) lineData[sellIdx] = sellValue;
+                if (buyIdx !== -1) lineData[buyIdx] = 0;  // Buy at 0% (baseline)
+                if (sellIdx !== -1) lineData[sellIdx] = pair.profitPct;  // Sell at profit %
 
                 return {
                     label: `${pair.symbol} (${isProfit ? '+' : ''}${pair.profitPct.toFixed(1)}%)`,
@@ -3617,11 +3628,11 @@
                                         if (!isBuy) {
                                             const profitStr = (pair.profit >= 0 ? '+' : '') + formatMoney(pair.profit);
                                             const pctStr = (pair.profitPct >= 0 ? '+' : '') + pair.profitPct.toFixed(1) + '%';
-                                            lines.push('Profit: ' + profitStr + ' (' + pctStr + ')');
+                                            lines.push('Return: ' + pctStr + ' (' + profitStr + ')');
                                         }
                                         return lines;
                                     }
-                                    return formatMoney(context.raw);
+                                    return (context.raw >= 0 ? '+' : '') + context.raw.toFixed(1) + '%';
                                 }
                             }
                         }
@@ -3630,7 +3641,10 @@
                         x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 9 } } },
                         y: {
                             grid: { color: 'rgba(255, 255, 255, 0.03)' },
-                            ticks: { callback: (v) => '$' + (v / 1000).toFixed(0) + 'k', font: { size: 9 } }
+                            ticks: {
+                                callback: (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+                                font: { size: 9 }
+                            }
                         }
                     }
                 }
