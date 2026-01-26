@@ -2468,10 +2468,6 @@
                     </div>
 
                     <div class="backtest-results" id="backtest-results">
-                        <div class="status-item" style="margin-bottom: 16px;">
-                            <span style="color: var(--text-muted);">Data Source</span>
-                            <span id="bt-data-source" style="color: var(--accent-cyan);">-</span>
-                        </div>
                         <div class="metrics-grid">
                             <div class="metric-box">
                                 <div class="value" id="bt-return" style="color: var(--accent-green);">+0.00%</div>
@@ -3412,11 +3408,6 @@
             }
 
             document.getElementById('backtest-results').classList.add('visible');
-
-            const dataSource = data.data_source || 'unknown';
-            const dataSourceEl = document.getElementById('bt-data-source');
-            dataSourceEl.textContent = dataSource === 'yahoo_finance' ? 'Yahoo Finance (Real)' : 'Simulated';
-            dataSourceEl.style.color = dataSource === 'yahoo_finance' ? 'var(--accent-green)' : 'var(--accent-amber)';
 
             const returnEl = document.getElementById('bt-return');
             returnEl.textContent = (data.metrics.total_return >= 0 ? '+' : '') + data.metrics.total_return.toFixed(2) + '%';
