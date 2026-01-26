@@ -2538,25 +2538,6 @@
                     </div>
                 </div>
 
-                <!-- Sector Allocation for Backtest -->
-                <div class="dashboard-grid" style="margin-top: 24px; grid-template-columns: 1fr 1fr;">
-                    <div class="glass-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Sector Allocation</h3>
-                        </div>
-                        <div id="backtest-sector-chart-container" style="position: relative; height: 300px; display: flex; align-items: center; justify-content: center;">
-                            <canvas id="backtest-sector-pie-chart"></canvas>
-                        </div>
-                    </div>
-                    <div class="glass-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Sector Breakdown</h3>
-                        </div>
-                        <div id="backtest-sector-breakdown-list" style="max-height: 300px; overflow-y: auto;">
-                            <div class="loading">Run a backtest to see sector breakdown...</div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </section>
 
@@ -3424,7 +3405,6 @@
 
             drawBacktestChart(data);
             populateTradesTable(data.trades || []);
-            drawBacktestSectorAllocation(data.sectors || []);
             showMessage(`Backtest complete: ${data.metrics.total_return >= 0 ? '+' : ''}${data.metrics.total_return.toFixed(2)}% return`);
         }
 
@@ -3886,102 +3866,6 @@
                 <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
                     <span style="color: var(--text-secondary);">Total Portfolio Value</span>
                     <span style="font-family: 'DM Mono', monospace; color: var(--accent-green); font-weight: 600;">${formatMoney(data.total_value)}</span>
-                </div>
-            `;
-        }
-
-        // Backtest sector allocation chart
-        let backtestSectorChart = null;
-
-        function drawBacktestSectorAllocation(sectors) {
-            const chartContainer = document.getElementById('backtest-sector-chart-container');
-            const breakdownEl = document.getElementById('backtest-sector-breakdown-list');
-
-            if (!sectors || sectors.length === 0) {
-                chartContainer.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">&#x1F4CA;</div>
-                        <div>No sector data available</div>
-                    </div>
-                `;
-                breakdownEl.innerHTML = '';
-                return;
-            }
-
-            // Restore canvas if it was replaced
-            if (!document.getElementById('backtest-sector-pie-chart')) {
-                chartContainer.innerHTML = '<canvas id="backtest-sector-pie-chart"></canvas>';
-            }
-
-            // Prepare chart data
-            const labels = sectors.map(s => s.name);
-            const values = sectors.map(s => s.percentage);
-            const colors = sectors.map(s => s.color);
-
-            // Destroy existing chart if exists
-            if (backtestSectorChart) {
-                backtestSectorChart.destroy();
-            }
-
-            // Create pie chart
-            const ctx = document.getElementById('backtest-sector-pie-chart').getContext('2d');
-            backtestSectorChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: colors,
-                        borderColor: 'rgba(0, 0, 0, 0.3)',
-                        borderWidth: 2,
-                        hoverOffset: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '55%',
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(10, 10, 20, 0.9)',
-                            titleColor: '#00F5FF',
-                            bodyColor: '#FFFFFF',
-                            borderColor: 'rgba(0, 245, 255, 0.3)',
-                            borderWidth: 1,
-                            padding: 12,
-                            callbacks: {
-                                label: function(context) {
-                                    const sector = sectors[context.dataIndex];
-                                    return `${sector.count} symbols (${sector.percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Render breakdown list
-            breakdownEl.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    ${sectors.map(s => `
-                        <div class="sector-breakdown-item" style="display: flex; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid ${s.color};">
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500; color: var(--text-primary);">${s.name}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);">${s.symbols.join(', ')}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-family: 'DM Mono', monospace; color: var(--accent-cyan);">${s.count} symbols</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);">${s.percentage}%</div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
-                    <span style="color: var(--text-secondary);">Total Symbols in Strategy</span>
-                    <span style="font-family: 'DM Mono', monospace; color: var(--accent-green); font-weight: 600;">${sectors.reduce((sum, s) => sum + s.count, 0)}</span>
                 </div>
             `;
         }
