@@ -4048,6 +4048,7 @@
             } else {
                 showMessage('Strategy deleted successfully!');
                 loadStrategies();
+                loadTrades();
             }
         }
 
@@ -4279,6 +4280,7 @@
                 showMessage(`Strategy ${isEdit ? 'updated' : 'created'} successfully!`);
                 closeStrategyModal();
                 loadStrategies();
+                loadTrades();
             }
         }
 
@@ -4404,6 +4406,7 @@
                 currentStrategy = strategyId;
                 showMessage(`Strategy changed to ${strategyId}`);
                 loadAll();
+                loadTrades();
             }
         }
 
@@ -4515,7 +4518,6 @@
             loadHealth();
             loadPortfolio();
             loadHoldings();
-            loadTrades();
             loadStrategies();
             loadSectorAllocation();
             loadPerformanceChart(currentPeriod);
@@ -4523,6 +4525,7 @@
         }
 
         loadAll();
+        loadTrades();  // Load trades once on page load (not in interval - only updates on strategy change)
         setInterval(loadAll, 30000);
         // Ticker data is cached to CSV - only fetch once on page load
 
@@ -5130,6 +5133,7 @@
                     }
 
                     alert('Strategy created successfully!');
+                    loadTrades();
                 } else {
                     const err = await response.json();
                     alert('Error: ' + (err.error || 'Failed to create strategy'));
