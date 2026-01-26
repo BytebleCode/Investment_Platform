@@ -19,6 +19,9 @@ from app.models.user_strategy_stocks import UserStrategyStock
 from app.services.available_symbols import validate_symbols
 from app.services.symbol_selector import get_symbols_for_strategy
 from app.services.macro_signals import get_regime_for_strategy, get_macro_service
+from app.services.allocation_service import AllocationService
+from app.services.rules_engine import RulesEngine
+from app.services.conditions_engine import ConditionsEngine
 
 logger = logging.getLogger(__name__)
 
@@ -460,3 +463,158 @@ class StrategyService:
             strategy['macro_regime'] = {'score': 0.0, 'regime': 'neutral', 'enabled': False}
 
         return strategy
+
+    # ===== Advanced Strategy Builder Integration =====
+
+    def get_strategy_with_advanced_features(self, strategy_id):
+        """
+        Get a strategy with all advanced features (allocations, rules, conditions).
+
+        Args:
+            strategy_id: Strategy identifier
+
+        Returns:
+            dict: Strategy data with allocations, rules, and conditions
+        """
+        strategy = self.get_strategy(strategy_id)
+        if not strategy:
+            return None
+
+        # Add allocation data
+        alloc_service = AllocationService(strategy_id)
+        allocations = alloc_service.get_allocations()
+        if allocations:
+            strategy['allocations'] = allocations
+            strategy['effective_symbols'] = alloc_service.compute_effective_symbols()
+            # Override stocks list with allocation-based symbols if available
+            effective_list = alloc_service.get_effective_symbol_list()
+            if effective_list:
+                strategy['stocks'] = effective_list
+
+        # Add rules
+        rules_engine = RulesEngine(strategy_id)
+        strategy['rules'] = rules_engine.get_rules()
+
+        # Add conditions
+        conditions_engine = ConditionsEngine(strategy_id)
+        strategy['conditions'] = conditions_engine.get_conditions()
+
+        # Add macro regime
+        if strategy.get('signals'):
+            strategy['macro_regime'] = get_regime_for_strategy(strategy)
+        else:
+            strategy['macro_regime'] = {'score': 0.0, 'regime': 'neutral', 'enabled': False}
+
+        return strategy
+
+    def create_advanced_strategy(self, data):
+        """
+        Create a strategy with advanced features (allocations, rules, conditions).
+
+        Args:
+            data: Strategy data dict with:
+                - name, description, color, risk_level, etc. (basic info)
+                - allocations: list of {path, weight} dicts
+                - rules: list of rule configs
+                - conditions: list of condition configs
+
+        Returns:
+            dict: Created strategy with all features
+        """
+        # Extract advanced features before creating base strategy
+        allocations_data = data.pop('allocations', [])
+        rules_data = data.pop('rules', [])
+        conditions_data = data.pop('conditions', [])
+
+        # If allocations provided but no stocks, compute stocks from allocations
+        if allocations_data and not data.get('stocks'):
+            # Create a temporary allocation service to compute symbols
+            temp_allocs = []
+            for alloc in allocations_data:
+                from app.data.symbol_universe import get_symbols_by_path, SYMBOL_UNIVERSE
+                path = alloc.get('path', '')
+                # Get symbols for this path
+                if '.' in path:
+                    symbols = get_symbols_by_path(path)
+                elif path.lower() in SYMBOL_UNIVERSE:
+                    symbols = get_symbols_by_path(path.lower())
+                else:
+                    symbols = [path.upper()]  # Assume it's a symbol
+                temp_allocs.extend(symbols)
+
+            data['stocks'] = list(set(temp_allocs)) if temp_allocs else ['SPY']
+
+        # Create the base strategy
+        strategy = self.create_strategy(data)
+        strategy_id = strategy['strategy_id']
+
+        # Add allocations
+        if allocations_data:
+            alloc_service = AllocationService(strategy_id)
+            alloc_service.set_allocations(allocations_data)
+            strategy['allocations'] = alloc_service.get_allocations()
+            strategy['effective_symbols'] = alloc_service.compute_effective_symbols()
+
+        # Add rules
+        if rules_data:
+            rules_engine = RulesEngine(strategy_id)
+            created_rules = []
+            for rule in rules_data:
+                created = rules_engine.create_rule(
+                    rule_name=rule.get('rule_name', 'Unnamed Rule'),
+                    rule_type=rule.get('rule_type'),
+                    config=rule.get('config', {}),
+                    priority=rule.get('priority', 0),
+                    is_active=rule.get('is_active', True)
+                )
+                created_rules.append(created)
+            strategy['rules'] = created_rules
+
+        # Add conditions
+        if conditions_data:
+            conditions_engine = ConditionsEngine(strategy_id)
+            created_conditions = []
+            for condition in conditions_data:
+                if condition.get('template_name'):
+                    # Create from template
+                    created = conditions_engine.create_from_template(
+                        condition['template_name'],
+                        condition.get('is_active', True)
+                    )
+                else:
+                    created = conditions_engine.create_condition(
+                        condition_type=condition.get('condition_type'),
+                        trigger_config=condition.get('trigger_config', {}),
+                        action_config=condition.get('action_config', {}),
+                        condition_name=condition.get('condition_name'),
+                        is_active=condition.get('is_active', True)
+                    )
+                created_conditions.append(created)
+            strategy['conditions'] = created_conditions
+
+        return strategy
+
+    def delete_strategy_complete(self, strategy_id, hard_delete=False):
+        """
+        Delete a strategy and all its associated data (allocations, rules, conditions).
+
+        Args:
+            strategy_id: Strategy identifier
+            hard_delete: If True, permanently delete
+
+        Returns:
+            bool: True if deleted
+        """
+        # Delete associated data first
+        from app.models.strategy_allocation import StrategyAllocation
+        from app.models.strategy_rules import StrategyRule
+        from app.models.strategy_conditions import StrategyCondition
+        from app.models.strategy_component_params import StrategyComponentParams
+
+        StrategyAllocation.delete_all_for_strategy(strategy_id, hard_delete)
+        StrategyRule.delete_all_for_strategy(strategy_id, hard_delete)
+        StrategyCondition.delete_all_for_strategy(strategy_id, hard_delete)
+        StrategyComponentParams.delete_all_for_strategy(strategy_id)
+
+        # Delete the strategy itself
+        return self.delete_strategy(strategy_id, hard_delete)

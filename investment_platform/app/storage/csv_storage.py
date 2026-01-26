@@ -30,6 +30,10 @@ class CSVStorage:
         'market_data_metadata': 'market_data_metadata.csv',
         'user_strategies': 'user_strategies.csv',
         'user_strategy_stocks': 'user_strategy_stocks.csv',
+        'strategy_allocations': 'strategy_allocations.csv',
+        'strategy_component_params': 'strategy_component_params.csv',
+        'strategy_rules': 'strategy_rules.csv',
+        'strategy_conditions': 'strategy_conditions.csv',
     }
 
     # Column definitions for each model (order matters for CSV)
@@ -69,6 +73,23 @@ class CSVStorage:
         ],
         'user_strategy_stocks': [
             'id', 'user_strategy_id', 'strategy_id', 'symbol', 'weight', 'created_at'
+        ],
+        'strategy_allocations': [
+            'id', 'strategy_id', 'allocation_type', 'path', 'weight',
+            'parent_path', 'is_active', 'created_at', 'updated_at'
+        ],
+        'strategy_component_params': [
+            'id', 'strategy_id', 'component_path', 'max_position_pct',
+            'stop_loss_percent', 'take_profit_percent', 'trade_frequency_multiplier',
+            'entry_signal', 'exit_signal', 'created_at'
+        ],
+        'strategy_rules': [
+            'id', 'strategy_id', 'rule_name', 'rule_type', 'is_active',
+            'priority', 'config', 'created_at'
+        ],
+        'strategy_conditions': [
+            'id', 'strategy_id', 'condition_name', 'condition_type',
+            'trigger_config', 'action_config', 'is_active', 'last_triggered', 'created_at'
         ],
     }
 
@@ -201,17 +222,25 @@ class CSVStorage:
         if field_name in ('confidence_level', 'max_position_size',
                           'stop_loss_percent', 'take_profit_percent',
                           'risk_level', 'expected_return_min', 'expected_return_max',
-                          'trade_frequency_seconds', 'user_strategy_id'):
+                          'trade_frequency_seconds', 'user_strategy_id', 'priority'):
             try:
                 return int(value)
             except ValueError:
                 return value
 
         if field_name in ('volatility', 'daily_drift', 'target_investment_ratio',
-                          'max_position_pct', 'weight'):
+                          'max_position_pct', 'weight', 'trade_frequency_multiplier'):
             try:
                 return float(value)
             except ValueError:
+                return value
+
+        # JSON fields
+        if field_name in ('config', 'trigger_config', 'action_config'):
+            import json
+            try:
+                return json.loads(value) if value else {}
+            except json.JSONDecodeError:
                 return value
 
         if field_name in ('created_at', 'updated_at', 'timestamp',
@@ -793,6 +822,370 @@ class CSVStorage:
         rows = self._read_all('user_strategy_stocks')
         rows = [r for r in rows if r.get('strategy_id') != strategy_id]
         self._write_all('user_strategy_stocks', rows)
+        return True
+
+
+    # =====================
+    # Strategy Allocations CRUD
+    # =====================
+
+    def get_strategy_allocations(self, strategy_id, include_inactive=False):
+        """Get all allocations for a strategy."""
+        rows = self._read_all('strategy_allocations')
+        allocations = []
+        for row in rows:
+            if row.get('strategy_id') == strategy_id:
+                if include_inactive or row.get('is_active', '1') == '1':
+                    allocations.append(self._deserialize_row(row, 'strategy_allocations'))
+        return allocations
+
+    def get_strategy_allocation(self, allocation_id):
+        """Get a specific allocation by ID."""
+        rows = self._read_all('strategy_allocations')
+        for row in rows:
+            if str(row.get('id')) == str(allocation_id):
+                return self._deserialize_row(row, 'strategy_allocations')
+        return None
+
+    def get_strategy_allocation_by_path(self, strategy_id, path):
+        """Get allocation by strategy and path."""
+        rows = self._read_all('strategy_allocations')
+        for row in rows:
+            if row.get('strategy_id') == strategy_id and row.get('path') == path:
+                return self._deserialize_row(row, 'strategy_allocations')
+        return None
+
+    def create_strategy_allocation(self, strategy_id, allocation_type, path, weight=1.0, parent_path=None):
+        """Create a new allocation."""
+        now = datetime.now(timezone.utc)
+        row = {
+            'id': self._next_id('strategy_allocations'),
+            'strategy_id': strategy_id,
+            'allocation_type': allocation_type,
+            'path': path,
+            'weight': weight,
+            'parent_path': parent_path or '',
+            'is_active': 1,
+            'created_at': now,
+            'updated_at': now,
+        }
+
+        rows = self._read_all('strategy_allocations')
+        serialized = {k: self._serialize_value(v) for k, v in row.items()}
+        rows.append(serialized)
+        self._write_all('strategy_allocations', rows)
+        return self._deserialize_row(row, 'strategy_allocations')
+
+    def update_strategy_allocation(self, allocation_id, **kwargs):
+        """Update an existing allocation."""
+        rows = self._read_all('strategy_allocations')
+        updated_row = None
+
+        for i, row in enumerate(rows):
+            if str(row.get('id')) == str(allocation_id):
+                for key, value in kwargs.items():
+                    if key in self.COLUMNS['strategy_allocations']:
+                        rows[i][key] = self._serialize_value(value)
+                rows[i]['updated_at'] = self._serialize_value(datetime.now(timezone.utc))
+                updated_row = rows[i]
+                break
+
+        if updated_row:
+            self._write_all('strategy_allocations', rows)
+            return self._deserialize_row(updated_row, 'strategy_allocations')
+        return None
+
+    def delete_strategy_allocation(self, allocation_id, hard_delete=False):
+        """Delete (or deactivate) an allocation."""
+        if hard_delete:
+            rows = self._read_all('strategy_allocations')
+            original_len = len(rows)
+            rows = [r for r in rows if str(r.get('id')) != str(allocation_id)]
+            if len(rows) < original_len:
+                self._write_all('strategy_allocations', rows)
+                return True
+            return False
+        else:
+            return self.update_strategy_allocation(allocation_id, is_active=0) is not None
+
+    def delete_all_strategy_allocations(self, strategy_id, hard_delete=False):
+        """Delete all allocations for a strategy."""
+        if hard_delete:
+            rows = self._read_all('strategy_allocations')
+            rows = [r for r in rows if r.get('strategy_id') != strategy_id]
+            self._write_all('strategy_allocations', rows)
+        else:
+            rows = self._read_all('strategy_allocations')
+            for i, row in enumerate(rows):
+                if row.get('strategy_id') == strategy_id:
+                    rows[i]['is_active'] = '0'
+                    rows[i]['updated_at'] = self._serialize_value(datetime.now(timezone.utc))
+            self._write_all('strategy_allocations', rows)
+        return True
+
+    # =====================
+    # Strategy Component Params CRUD
+    # =====================
+
+    def get_strategy_component_params(self, strategy_id, component_path):
+        """Get params for a specific component."""
+        rows = self._read_all('strategy_component_params')
+        for row in rows:
+            if row.get('strategy_id') == strategy_id and row.get('component_path') == component_path:
+                return self._deserialize_row(row, 'strategy_component_params')
+        return None
+
+    def get_all_strategy_component_params(self, strategy_id):
+        """Get all component params for a strategy."""
+        rows = self._read_all('strategy_component_params')
+        return [
+            self._deserialize_row(row, 'strategy_component_params')
+            for row in rows
+            if row.get('strategy_id') == strategy_id
+        ]
+
+    def set_strategy_component_params(self, strategy_id, component_path, **params):
+        """Set or update params for a component."""
+        existing = self.get_strategy_component_params(strategy_id, component_path)
+        rows = self._read_all('strategy_component_params')
+
+        if existing:
+            for i, row in enumerate(rows):
+                if row.get('strategy_id') == strategy_id and row.get('component_path') == component_path:
+                    for key, value in params.items():
+                        if key in self.COLUMNS['strategy_component_params']:
+                            rows[i][key] = self._serialize_value(value)
+                    break
+            self._write_all('strategy_component_params', rows)
+            return self.get_strategy_component_params(strategy_id, component_path)
+        else:
+            now = datetime.now(timezone.utc)
+            row = {
+                'id': self._next_id('strategy_component_params'),
+                'strategy_id': strategy_id,
+                'component_path': component_path,
+                'max_position_pct': params.get('max_position_pct'),
+                'stop_loss_percent': params.get('stop_loss_percent'),
+                'take_profit_percent': params.get('take_profit_percent'),
+                'trade_frequency_multiplier': params.get('trade_frequency_multiplier'),
+                'entry_signal': params.get('entry_signal', ''),
+                'exit_signal': params.get('exit_signal', ''),
+                'created_at': now,
+            }
+            serialized = {k: self._serialize_value(v) for k, v in row.items()}
+            rows.append(serialized)
+            self._write_all('strategy_component_params', rows)
+            return self._deserialize_row(row, 'strategy_component_params')
+
+    def delete_strategy_component_params(self, strategy_id, component_path):
+        """Delete params for a component."""
+        rows = self._read_all('strategy_component_params')
+        original_len = len(rows)
+        rows = [r for r in rows if not (r.get('strategy_id') == strategy_id and r.get('component_path') == component_path)]
+        if len(rows) < original_len:
+            self._write_all('strategy_component_params', rows)
+            return True
+        return False
+
+    def delete_all_strategy_component_params(self, strategy_id):
+        """Delete all component params for a strategy."""
+        rows = self._read_all('strategy_component_params')
+        rows = [r for r in rows if r.get('strategy_id') != strategy_id]
+        self._write_all('strategy_component_params', rows)
+        return True
+
+    # =====================
+    # Strategy Rules CRUD
+    # =====================
+
+    def get_strategy_rules(self, strategy_id, include_inactive=False):
+        """Get all rules for a strategy."""
+        rows = self._read_all('strategy_rules')
+        rules = []
+        for row in rows:
+            if row.get('strategy_id') == strategy_id:
+                if include_inactive or row.get('is_active', '1') == '1':
+                    rules.append(self._deserialize_row(row, 'strategy_rules'))
+        # Sort by priority descending
+        rules.sort(key=lambda x: x.get('priority', 0), reverse=True)
+        return rules
+
+    def get_strategy_rule(self, rule_id):
+        """Get a specific rule by ID."""
+        rows = self._read_all('strategy_rules')
+        for row in rows:
+            if str(row.get('id')) == str(rule_id):
+                return self._deserialize_row(row, 'strategy_rules')
+        return None
+
+    def create_strategy_rule(self, strategy_id, rule_name, rule_type, config, priority=0, is_active=True):
+        """Create a new rule."""
+        import json
+        now = datetime.now(timezone.utc)
+        row = {
+            'id': self._next_id('strategy_rules'),
+            'strategy_id': strategy_id,
+            'rule_name': rule_name,
+            'rule_type': rule_type,
+            'is_active': 1 if is_active else 0,
+            'priority': priority,
+            'config': json.dumps(config) if isinstance(config, dict) else config,
+            'created_at': now,
+        }
+
+        rows = self._read_all('strategy_rules')
+        serialized = {k: self._serialize_value(v) for k, v in row.items()}
+        rows.append(serialized)
+        self._write_all('strategy_rules', rows)
+        return self._deserialize_row(row, 'strategy_rules')
+
+    def update_strategy_rule(self, rule_id, **kwargs):
+        """Update an existing rule."""
+        import json
+        rows = self._read_all('strategy_rules')
+        updated_row = None
+
+        for i, row in enumerate(rows):
+            if str(row.get('id')) == str(rule_id):
+                for key, value in kwargs.items():
+                    if key == 'config' and isinstance(value, dict):
+                        rows[i][key] = json.dumps(value)
+                    elif key == 'is_active':
+                        rows[i][key] = '1' if value else '0'
+                    elif key in self.COLUMNS['strategy_rules']:
+                        rows[i][key] = self._serialize_value(value)
+                updated_row = rows[i]
+                break
+
+        if updated_row:
+            self._write_all('strategy_rules', rows)
+            return self._deserialize_row(updated_row, 'strategy_rules')
+        return None
+
+    def delete_strategy_rule(self, rule_id, hard_delete=False):
+        """Delete (or deactivate) a rule."""
+        if hard_delete:
+            rows = self._read_all('strategy_rules')
+            original_len = len(rows)
+            rows = [r for r in rows if str(r.get('id')) != str(rule_id)]
+            if len(rows) < original_len:
+                self._write_all('strategy_rules', rows)
+                return True
+            return False
+        else:
+            return self.update_strategy_rule(rule_id, is_active=False) is not None
+
+    def delete_all_strategy_rules(self, strategy_id, hard_delete=False):
+        """Delete all rules for a strategy."""
+        if hard_delete:
+            rows = self._read_all('strategy_rules')
+            rows = [r for r in rows if r.get('strategy_id') != strategy_id]
+            self._write_all('strategy_rules', rows)
+        else:
+            rows = self._read_all('strategy_rules')
+            for i, row in enumerate(rows):
+                if row.get('strategy_id') == strategy_id:
+                    rows[i]['is_active'] = '0'
+            self._write_all('strategy_rules', rows)
+        return True
+
+    # =====================
+    # Strategy Conditions CRUD
+    # =====================
+
+    def get_strategy_conditions(self, strategy_id, include_inactive=False):
+        """Get all conditions for a strategy."""
+        rows = self._read_all('strategy_conditions')
+        conditions = []
+        for row in rows:
+            if row.get('strategy_id') == strategy_id:
+                if include_inactive or row.get('is_active', '1') == '1':
+                    conditions.append(self._deserialize_row(row, 'strategy_conditions'))
+        return conditions
+
+    def get_strategy_condition(self, condition_id):
+        """Get a specific condition by ID."""
+        rows = self._read_all('strategy_conditions')
+        for row in rows:
+            if str(row.get('id')) == str(condition_id):
+                return self._deserialize_row(row, 'strategy_conditions')
+        return None
+
+    def create_strategy_condition(self, strategy_id, condition_type, trigger_config, action_config,
+                                  condition_name=None, is_active=True):
+        """Create a new condition."""
+        import json
+        now = datetime.now(timezone.utc)
+        row = {
+            'id': self._next_id('strategy_conditions'),
+            'strategy_id': strategy_id,
+            'condition_name': condition_name or '',
+            'condition_type': condition_type,
+            'trigger_config': json.dumps(trigger_config) if isinstance(trigger_config, dict) else trigger_config,
+            'action_config': json.dumps(action_config) if isinstance(action_config, dict) else action_config,
+            'is_active': 1 if is_active else 0,
+            'last_triggered': '',
+            'created_at': now,
+        }
+
+        rows = self._read_all('strategy_conditions')
+        serialized = {k: self._serialize_value(v) for k, v in row.items()}
+        rows.append(serialized)
+        self._write_all('strategy_conditions', rows)
+        return self._deserialize_row(row, 'strategy_conditions')
+
+    def update_strategy_condition(self, condition_id, **kwargs):
+        """Update an existing condition."""
+        import json
+        rows = self._read_all('strategy_conditions')
+        updated_row = None
+
+        for i, row in enumerate(rows):
+            if str(row.get('id')) == str(condition_id):
+                for key, value in kwargs.items():
+                    if key in ('trigger_config', 'action_config') and isinstance(value, dict):
+                        rows[i][key] = json.dumps(value)
+                    elif key == 'is_active':
+                        rows[i][key] = '1' if value else '0'
+                    elif key in self.COLUMNS['strategy_conditions']:
+                        rows[i][key] = self._serialize_value(value)
+                updated_row = rows[i]
+                break
+
+        if updated_row:
+            self._write_all('strategy_conditions', rows)
+            return self._deserialize_row(updated_row, 'strategy_conditions')
+        return None
+
+    def mark_condition_triggered(self, condition_id):
+        """Mark a condition as triggered."""
+        return self.update_strategy_condition(condition_id, last_triggered=datetime.now(timezone.utc))
+
+    def delete_strategy_condition(self, condition_id, hard_delete=False):
+        """Delete (or deactivate) a condition."""
+        if hard_delete:
+            rows = self._read_all('strategy_conditions')
+            original_len = len(rows)
+            rows = [r for r in rows if str(r.get('id')) != str(condition_id)]
+            if len(rows) < original_len:
+                self._write_all('strategy_conditions', rows)
+                return True
+            return False
+        else:
+            return self.update_strategy_condition(condition_id, is_active=False) is not None
+
+    def delete_all_strategy_conditions(self, strategy_id, hard_delete=False):
+        """Delete all conditions for a strategy."""
+        if hard_delete:
+            rows = self._read_all('strategy_conditions')
+            rows = [r for r in rows if r.get('strategy_id') != strategy_id]
+            self._write_all('strategy_conditions', rows)
+        else:
+            rows = self._read_all('strategy_conditions')
+            for i, row in enumerate(rows):
+                if row.get('strategy_id') == strategy_id:
+                    rows[i]['is_active'] = '0'
+            self._write_all('strategy_conditions', rows)
         return True
 
 
