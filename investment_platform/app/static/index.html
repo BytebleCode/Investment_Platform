@@ -1954,23 +1954,30 @@
                         <div class="backtest-chart-container">
                             <canvas id="backtestChart"></canvas>
                         </div>
-                        <div class="chart-legend">
-                            <div class="legend-item">
-                                <div class="legend-marker buy"></div>
-                                <span>Buy</span>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin: 24px 0 16px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                            <span class="card-title">Trade Activity</span>
+                            <div class="chart-legend" style="margin: 0;">
+                                <div class="legend-item">
+                                    <div class="legend-marker buy"></div>
+                                    <span>Buy</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-marker sell"></div>
+                                    <span>Sell</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div style="width: 20px; height: 2px; background: var(--accent-green); border-style: dashed;"></div>
+                                    <span>Profit</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div style="width: 20px; height: 2px; background: var(--accent-red); border-style: dashed;"></div>
+                                    <span>Loss</span>
+                                </div>
                             </div>
-                            <div class="legend-item">
-                                <div class="legend-marker sell"></div>
-                                <span>Sell</span>
-                            </div>
-                            <div class="legend-item">
-                                <div style="width: 20px; height: 2px; background: var(--accent-green); border-style: dashed;"></div>
-                                <span>Profit</span>
-                            </div>
-                            <div class="legend-item">
-                                <div style="width: 20px; height: 2px; background: var(--accent-red); border-style: dashed;"></div>
-                                <span>Loss</span>
-                            </div>
+                        </div>
+                        <div class="backtest-chart-container">
+                            <canvas id="tradesChart"></canvas>
                         </div>
 
                         <div class="trades-history" id="trades-history">
@@ -2363,6 +2370,7 @@
         let currentStrategy = 'balanced';
         let performanceChart = null;
         let backtestChart = null;
+        let tradesChart = null;
         let currentPeriod = '1m';
 
         function showMessage(text, isError = false) {
@@ -2598,22 +2606,89 @@
             gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 159, 0.15)' : 'rgba(255, 45, 85, 0.15)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-            // Pair up buy/sell trades by symbol
+            // Draw equity curve only
+            backtestChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: values,
+                        borderColor: isPositive ? '#00FF9F' : '#FF2D55',
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(10, 10, 20, 0.95)',
+                            callbacks: { label: (ctx) => 'Portfolio: ' + formatMoney(ctx.raw) }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 9 } } },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                            ticks: { callback: (v) => '$' + (v / 1000).toFixed(0) + 'k', font: { size: 9 } }
+                        }
+                    }
+                }
+            });
+
+            // Draw trades chart separately
+            drawTradesChart(data, labels, dates);
+        }
+
+        function drawTradesChart(data, labels, dates) {
+            const ctx = document.getElementById('tradesChart').getContext('2d');
+            if (tradesChart) tradesChart.destroy();
+
             const trades = data.trades || [];
             const pairedTrades = pairTrades(trades);
+
+            if (pairedTrades.length === 0) {
+                // No trades - show empty chart with message
+                tradesChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: labels, datasets: [] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: {
+                                display: true,
+                                text: 'No trades executed',
+                                color: 'rgba(255,255,255,0.5)',
+                                font: { size: 12 }
+                            }
+                        },
+                        scales: {
+                            x: { display: false },
+                            y: { display: false }
+                        }
+                    }
+                });
+                return;
+            }
 
             // Create datasets for connecting lines between buy and sell
             const tradeLineDatasets = pairedTrades.map((pair, idx) => {
                 const buyIdx = dates.findIndex(d => d === pair.buy.date);
                 const sellIdx = dates.findIndex(d => d === pair.sell.date);
-                // Color based on actual stock profit (sell price vs buy price)
                 const isProfit = pair.sell.price > pair.buy.price;
 
-                // Create sparse array with nulls except at buy and sell points
                 // Use actual trade values: price × quantity
                 const lineData = new Array(labels.length).fill(null);
-                const buyValue = pair.buy.price * pair.quantity;   // Cost of purchase
-                const sellValue = pair.sell.price * pair.quantity; // Proceeds from sale
+                const buyValue = pair.buy.price * pair.quantity;
+                const sellValue = pair.sell.price * pair.quantity;
                 if (buyIdx !== -1) lineData[buyIdx] = buyValue;
                 if (sellIdx !== -1) lineData[sellIdx] = sellValue;
 
@@ -2646,29 +2721,15 @@
                         return 0;
                     },
                     spanGaps: true,
-                    order: 1,
                     pair: pair
                 };
             });
 
-            backtestChart = new Chart(ctx, {
+            tradesChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [
-                        {
-                            label: 'Portfolio Value',
-                            data: values,
-                            borderColor: isPositive ? '#00FF9F' : '#FF2D55',
-                            backgroundColor: gradient,
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 0,
-                            order: 2
-                        },
-                        ...tradeLineDatasets
-                    ]
+                    datasets: tradeLineDatasets
                 },
                 options: {
                     responsive: true,
@@ -2690,16 +2751,14 @@
                                     return labels[context[0].dataIndex];
                                 },
                                 label: function(context) {
-                                    if (context.dataset.label === 'Portfolio Value') {
-                                        return 'Portfolio: ' + formatMoney(context.raw);
-                                    }
                                     const pair = context.dataset.pair;
                                     if (pair) {
                                         const isBuy = context.dataIndex === dates.findIndex(d => d === pair.buy.date);
                                         const trade = isBuy ? pair.buy : pair.sell;
                                         const lines = [
                                             (isBuy ? 'BUY ' : 'SELL ') + pair.symbol,
-                                            'Qty: ' + pair.quantity + ' @ ' + formatMoney(trade.price)
+                                            'Qty: ' + pair.quantity + ' @ ' + formatMoney(trade.price),
+                                            'Total: ' + formatMoney(trade.price * pair.quantity)
                                         ];
                                         if (!isBuy) {
                                             const profitStr = (pair.profit >= 0 ? '+' : '') + formatMoney(pair.profit);
@@ -3597,7 +3656,7 @@
 
         loadAll();
         setInterval(loadAll, 30000);
-        setInterval(updateTicker, 5000);
+        // Ticker data is cached to CSV - only fetch once on page load
     </script>
 </body>
 </html>

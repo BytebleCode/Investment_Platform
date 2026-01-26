@@ -163,12 +163,48 @@ def get_ticker_data():
     GET /api/market/ticker
     Returns ticker data with 5-day moving average comparison.
 
+    Data is cached to CSV file after first fetch. Subsequent requests
+    on the same day return cached data.
+
     Query params:
         - symbols: Comma-separated list of symbols (optional, defaults to major indices/stocks)
+        - refresh: Set to 'true' to force refresh from API
 
     Returns current price and percentage vs 5-day moving average for each symbol.
     """
+    import os
+    import csv
+
     default_symbols = ['BTC-USD', 'ETH-USD', '^GSPC', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA']
+
+    # Cache file path
+    cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f'ticker_cache_{date.today().isoformat()}.csv')
+
+    force_refresh = request.args.get('refresh', '').lower() == 'true'
+
+    # Try to read from cache first (unless refresh requested)
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            results = {}
+            with open(cache_file, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    results[row['symbol']] = {
+                        'price': float(row['price']),
+                        'change_pct': float(row['change_pct']),
+                        'ma5': float(row['ma5']),
+                        'source': row['source'],
+                        'cached': True
+                    }
+            return jsonify({
+                'ticker': results,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'cached': True
+            })
+        except Exception:
+            pass  # Cache read failed, fetch fresh data
 
     symbols_param = request.args.get('symbols', '')
     if symbols_param:
@@ -224,6 +260,23 @@ def get_ticker_data():
 
         except Exception as e:
             results[symbol] = {'error': str(e)}
+
+    # Save to CSV cache (only entries without errors)
+    try:
+        with open(cache_file, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=['symbol', 'price', 'change_pct', 'ma5', 'source'])
+            writer.writeheader()
+            for symbol, data in results.items():
+                if 'error' not in data:
+                    writer.writerow({
+                        'symbol': symbol,
+                        'price': data['price'],
+                        'change_pct': data['change_pct'],
+                        'ma5': data['ma5'],
+                        'source': data['source']
+                    })
+    except Exception:
+        pass  # Cache write failed, continue anyway
 
     return jsonify({
         'ticker': results,
