@@ -36,8 +36,8 @@ if dashboard_enabled:
         dashboard_enabled = False
 
 if __name__ == '__main__':
-    # Get port from environment or default to 5000
-    port = int(os.environ.get('PORT', 5000))
+    # Get port from environment or default to 9090
+    port = int(os.environ.get('PORT', 9090))
 
     if dashboard_enabled:
         print(f"""
