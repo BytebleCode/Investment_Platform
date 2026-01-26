@@ -1963,6 +1963,14 @@
                                 <div class="legend-marker sell"></div>
                                 <span>Sell</span>
                             </div>
+                            <div class="legend-item">
+                                <div style="width: 20px; height: 2px; background: var(--accent-green); border-style: dashed;"></div>
+                                <span>Profit</span>
+                            </div>
+                            <div class="legend-item">
+                                <div style="width: 20px; height: 2px; background: var(--accent-red); border-style: dashed;"></div>
+                                <span>Loss</span>
+                            </div>
                         </div>
 
                         <div class="trades-history" id="trades-history">
@@ -1974,12 +1982,13 @@
                                 <table class="trades-table">
                                     <thead>
                                         <tr>
-                                            <th>Date</th>
-                                            <th>Type</th>
                                             <th>Symbol</th>
+                                            <th>Buy Date</th>
+                                            <th>Buy Price</th>
+                                            <th>Sell Date</th>
+                                            <th>Sell Price</th>
                                             <th>Qty</th>
-                                            <th>Price</th>
-                                            <th>Value</th>
+                                            <th>Profit/Loss</th>
                                         </tr>
                                     </thead>
                                     <tbody id="trades-table-body">
@@ -2545,6 +2554,37 @@
             showMessage(`Backtest complete: ${data.metrics.total_return >= 0 ? '+' : ''}${data.metrics.total_return.toFixed(2)}% return`);
         }
 
+        function pairTrades(trades) {
+            // Match buy trades with their corresponding sell trades by symbol
+            const openPositions = {}; // symbol -> [buy trades]
+            const pairedTrades = [];
+
+            trades.forEach(trade => {
+                if (trade.type === 'buy') {
+                    if (!openPositions[trade.symbol]) {
+                        openPositions[trade.symbol] = [];
+                    }
+                    openPositions[trade.symbol].push({ ...trade });
+                } else if (trade.type === 'sell') {
+                    if (openPositions[trade.symbol] && openPositions[trade.symbol].length > 0) {
+                        const buyTrade = openPositions[trade.symbol].shift();
+                        const profit = (trade.price - buyTrade.price) * trade.quantity;
+                        const profitPct = ((trade.price - buyTrade.price) / buyTrade.price) * 100;
+                        pairedTrades.push({
+                            symbol: trade.symbol,
+                            buy: buyTrade,
+                            sell: trade,
+                            quantity: trade.quantity,
+                            profit: profit,
+                            profitPct: profitPct
+                        });
+                    }
+                }
+            });
+
+            return pairedTrades;
+        }
+
         function drawBacktestChart(data) {
             const ctx = document.getElementById('backtestChart').getContext('2d');
             if (backtestChart) backtestChart.destroy();
@@ -2558,22 +2598,53 @@
             gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 159, 0.15)' : 'rgba(255, 45, 85, 0.15)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-            // Create buy/sell marker datasets
-            const buyPoints = [];
-            const sellPoints = [];
+            // Pair up buy/sell trades by symbol
             const trades = data.trades || [];
+            const pairedTrades = pairTrades(trades);
 
-            trades.forEach(trade => {
-                const tradeDate = trade.date;
-                const idx = dates.findIndex(d => d === tradeDate);
-                if (idx !== -1) {
-                    const point = { x: idx, y: trade.value, trade: trade };
-                    if (trade.type === 'buy') {
-                        buyPoints.push(point);
-                    } else {
-                        sellPoints.push(point);
-                    }
-                }
+            // Create datasets for connecting lines between buy and sell
+            const tradeLineDatasets = pairedTrades.map((pair, idx) => {
+                const buyIdx = dates.findIndex(d => d === pair.buy.date);
+                const sellIdx = dates.findIndex(d => d === pair.sell.date);
+                const isProfit = pair.profit >= 0;
+
+                // Create sparse array with nulls except at buy and sell points
+                const lineData = new Array(labels.length).fill(null);
+                if (buyIdx !== -1) lineData[buyIdx] = pair.buy.value;
+                if (sellIdx !== -1) lineData[sellIdx] = pair.sell.value;
+
+                return {
+                    label: `${pair.symbol} (${isProfit ? '+' : ''}${pair.profitPct.toFixed(1)}%)`,
+                    data: lineData,
+                    borderColor: isProfit ? 'rgba(0, 255, 159, 0.7)' : 'rgba(255, 45, 85, 0.7)',
+                    borderWidth: 2,
+                    borderDash: [5, 3],
+                    fill: false,
+                    tension: 0,
+                    pointRadius: 6,
+                    pointBackgroundColor: (context) => {
+                        if (context.dataIndex === buyIdx) return '#00FF9F';
+                        if (context.dataIndex === sellIdx) return '#FF2D55';
+                        return 'transparent';
+                    },
+                    pointBorderColor: (context) => {
+                        if (context.dataIndex === buyIdx) return '#00FF9F';
+                        if (context.dataIndex === sellIdx) return '#FF2D55';
+                        return 'transparent';
+                    },
+                    pointStyle: (context) => {
+                        if (context.dataIndex === buyIdx) return 'triangle';
+                        if (context.dataIndex === sellIdx) return 'triangle';
+                        return 'circle';
+                    },
+                    rotation: (context) => {
+                        if (context.dataIndex === sellIdx) return 180;
+                        return 0;
+                    },
+                    spanGaps: true,
+                    order: 1,
+                    pair: pair
+                };
             });
 
             backtestChart = new Chart(ctx, {
@@ -2592,31 +2663,7 @@
                             pointRadius: 0,
                             order: 2
                         },
-                        {
-                            label: 'Buy',
-                            data: buyPoints.map(p => ({ x: p.x, y: p.y })),
-                            type: 'scatter',
-                            backgroundColor: '#00FF9F',
-                            borderColor: '#00FF9F',
-                            pointStyle: 'triangle',
-                            pointRadius: 7,
-                            pointHoverRadius: 10,
-                            order: 1,
-                            trades: buyPoints.map(p => p.trade)
-                        },
-                        {
-                            label: 'Sell',
-                            data: sellPoints.map(p => ({ x: p.x, y: p.y })),
-                            type: 'scatter',
-                            backgroundColor: '#FF2D55',
-                            borderColor: '#FF2D55',
-                            pointStyle: 'triangle',
-                            rotation: 180,
-                            pointRadius: 7,
-                            pointHoverRadius: 10,
-                            order: 1,
-                            trades: sellPoints.map(p => p.trade)
-                        }
+                        ...tradeLineDatasets
                     ]
                 },
                 options: {
@@ -2631,24 +2678,33 @@
                             borderColor: 'rgba(0, 245, 255, 0.2)',
                             borderWidth: 1,
                             padding: 10,
+                            filter: function(tooltipItem) {
+                                return tooltipItem.raw !== null;
+                            },
                             callbacks: {
                                 title: function(context) {
-                                    return labels[context[0].dataIndex] || context[0].label;
+                                    return labels[context[0].dataIndex];
                                 },
                                 label: function(context) {
                                     if (context.dataset.label === 'Portfolio Value') {
-                                        return 'Value: ' + formatMoney(context.raw);
+                                        return 'Portfolio: ' + formatMoney(context.raw);
                                     }
-                                    const trades = context.dataset.trades;
-                                    if (trades && trades[context.dataIndex]) {
-                                        const t = trades[context.dataIndex];
-                                        return [
-                                            context.dataset.label + ': ' + t.symbol,
-                                            'Qty: ' + t.quantity + ' @ ' + formatMoney(t.price),
-                                            'Portfolio: ' + formatMoney(t.value)
+                                    const pair = context.dataset.pair;
+                                    if (pair) {
+                                        const isBuy = context.dataIndex === dates.findIndex(d => d === pair.buy.date);
+                                        const trade = isBuy ? pair.buy : pair.sell;
+                                        const lines = [
+                                            (isBuy ? 'BUY ' : 'SELL ') + pair.symbol,
+                                            'Qty: ' + pair.quantity + ' @ ' + formatMoney(trade.price)
                                         ];
+                                        if (!isBuy) {
+                                            const profitStr = (pair.profit >= 0 ? '+' : '') + formatMoney(pair.profit);
+                                            const pctStr = (pair.profitPct >= 0 ? '+' : '') + pair.profitPct.toFixed(1) + '%';
+                                            lines.push('Profit: ' + profitStr + ' (' + pctStr + ')');
+                                        }
+                                        return lines;
                                     }
-                                    return formatMoney(context.raw.y);
+                                    return formatMoney(context.raw);
                                 }
                             }
                         }
@@ -2668,23 +2724,28 @@
             const tbody = document.getElementById('trades-table-body');
             const countEl = document.getElementById('trades-count');
 
-            countEl.textContent = trades.length + ' trade' + (trades.length !== 1 ? 's' : '');
+            const pairedTrades = pairTrades(trades);
+            countEl.textContent = pairedTrades.length + ' round-trip trade' + (pairedTrades.length !== 1 ? 's' : '');
 
-            if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No trades executed</td></tr>';
+            if (pairedTrades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No completed trades</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = trades.map(trade => `
+            tbody.innerHTML = pairedTrades.map(pair => {
+                const profitClass = pair.profit >= 0 ? 'trade-type-buy' : 'trade-type-sell';
+                const profitSign = pair.profit >= 0 ? '+' : '';
+                return `
                 <tr>
-                    <td>${new Date(trade.date).toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'})}</td>
-                    <td class="trade-type-${trade.type}">${trade.type.toUpperCase()}</td>
-                    <td class="trade-symbol">${trade.symbol}</td>
-                    <td>${trade.quantity}</td>
-                    <td>${formatMoney(trade.price)}</td>
-                    <td>${formatMoney(trade.value)}</td>
+                    <td class="trade-symbol">${pair.symbol}</td>
+                    <td>${new Date(pair.buy.date).toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'})}</td>
+                    <td>${formatMoney(pair.buy.price)}</td>
+                    <td>${new Date(pair.sell.date).toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'})}</td>
+                    <td>${formatMoney(pair.sell.price)}</td>
+                    <td>${pair.quantity}</td>
+                    <td class="${profitClass}">${profitSign}${formatMoney(pair.profit)} (${profitSign}${pair.profitPct.toFixed(1)}%)</td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
 
         async function loadHealth() {
