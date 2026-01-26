@@ -614,6 +614,104 @@
             height: 250px;
         }
 
+        .trades-history {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .trades-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .trades-table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .trades-table th {
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .trades-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .trades-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .trades-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .trade-type-buy {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+
+        .trade-type-sell {
+            color: var(--accent-red);
+            font-weight: 600;
+        }
+
+        .trade-symbol {
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 16px;
+            justify-content: flex-end;
+            margin-top: 8px;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+        }
+
+        .legend-marker {
+            width: 0;
+            height: 0;
+        }
+
+        .legend-marker.buy {
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 8px solid var(--accent-green);
+        }
+
+        .legend-marker.sell {
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 8px solid var(--accent-red);
+        }
+
         /* ===== STRATEGIES SECTION ===== */
         .strategies-section {
             margin-bottom: 60px;
@@ -1856,6 +1954,39 @@
                         <div class="backtest-chart-container">
                             <canvas id="backtestChart"></canvas>
                         </div>
+                        <div class="chart-legend">
+                            <div class="legend-item">
+                                <div class="legend-marker buy"></div>
+                                <span>Buy</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-marker sell"></div>
+                                <span>Sell</span>
+                            </div>
+                        </div>
+
+                        <div class="trades-history" id="trades-history">
+                            <div class="trades-history-header">
+                                <span class="card-title">Trade History</span>
+                                <span id="trades-count" style="font-size: 0.8rem; color: var(--text-muted);">0 trades</span>
+                            </div>
+                            <div class="trades-table-container">
+                                <table class="trades-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Symbol</th>
+                                            <th>Qty</th>
+                                            <th>Price</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="trades-table-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2410,6 +2541,7 @@
             document.getElementById('bt-end-value').textContent = formatMoney(data.final_value);
 
             drawBacktestChart(data);
+            populateTradesTable(data.trades || []);
             showMessage(`Backtest complete: ${data.metrics.total_return >= 0 ? '+' : ''}${data.metrics.total_return.toFixed(2)}% return`);
         }
 
@@ -2419,26 +2551,73 @@
 
             const labels = data.equity_curve.map(p => new Date(p.date).toLocaleDateString([], {month: 'short', day: 'numeric'}));
             const values = data.equity_curve.map(p => p.value);
+            const dates = data.equity_curve.map(p => p.date);
             const isPositive = data.metrics.total_return >= 0;
 
             const gradient = ctx.createLinearGradient(0, 0, 0, 220);
             gradient.addColorStop(0, isPositive ? 'rgba(0, 255, 159, 0.15)' : 'rgba(255, 45, 85, 0.15)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
+            // Create buy/sell marker datasets
+            const buyPoints = [];
+            const sellPoints = [];
+            const trades = data.trades || [];
+
+            trades.forEach(trade => {
+                const tradeDate = trade.date;
+                const idx = dates.findIndex(d => d === tradeDate);
+                if (idx !== -1) {
+                    const point = { x: idx, y: trade.value, trade: trade };
+                    if (trade.type === 'buy') {
+                        buyPoints.push(point);
+                    } else {
+                        sellPoints.push(point);
+                    }
+                }
+            });
+
             backtestChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: 'Portfolio Value',
-                        data: values,
-                        borderColor: isPositive ? '#00FF9F' : '#FF2D55',
-                        backgroundColor: gradient,
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 0
-                    }]
+                    datasets: [
+                        {
+                            label: 'Portfolio Value',
+                            data: values,
+                            borderColor: isPositive ? '#00FF9F' : '#FF2D55',
+                            backgroundColor: gradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            order: 2
+                        },
+                        {
+                            label: 'Buy',
+                            data: buyPoints.map(p => ({ x: p.x, y: p.y })),
+                            type: 'scatter',
+                            backgroundColor: '#00FF9F',
+                            borderColor: '#00FF9F',
+                            pointStyle: 'triangle',
+                            pointRadius: 7,
+                            pointHoverRadius: 10,
+                            order: 1,
+                            trades: buyPoints.map(p => p.trade)
+                        },
+                        {
+                            label: 'Sell',
+                            data: sellPoints.map(p => ({ x: p.x, y: p.y })),
+                            type: 'scatter',
+                            backgroundColor: '#FF2D55',
+                            borderColor: '#FF2D55',
+                            pointStyle: 'triangle',
+                            rotation: 180,
+                            pointRadius: 7,
+                            pointHoverRadius: 10,
+                            order: 1,
+                            trades: sellPoints.map(p => p.trade)
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -2447,7 +2626,31 @@
                         legend: { display: false },
                         tooltip: {
                             backgroundColor: 'rgba(10, 10, 20, 0.95)',
-                            callbacks: { label: (ctx) => formatMoney(ctx.raw) }
+                            titleColor: '#00F5FF',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(0, 245, 255, 0.2)',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                title: function(context) {
+                                    return labels[context[0].dataIndex] || context[0].label;
+                                },
+                                label: function(context) {
+                                    if (context.dataset.label === 'Portfolio Value') {
+                                        return 'Value: ' + formatMoney(context.raw);
+                                    }
+                                    const trades = context.dataset.trades;
+                                    if (trades && trades[context.dataIndex]) {
+                                        const t = trades[context.dataIndex];
+                                        return [
+                                            context.dataset.label + ': ' + t.symbol,
+                                            'Qty: ' + t.quantity + ' @ ' + formatMoney(t.price),
+                                            'Portfolio: ' + formatMoney(t.value)
+                                        ];
+                                    }
+                                    return formatMoney(context.raw.y);
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -2459,6 +2662,29 @@
                     }
                 }
             });
+        }
+
+        function populateTradesTable(trades) {
+            const tbody = document.getElementById('trades-table-body');
+            const countEl = document.getElementById('trades-count');
+
+            countEl.textContent = trades.length + ' trade' + (trades.length !== 1 ? 's' : '');
+
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No trades executed</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = trades.map(trade => `
+                <tr>
+                    <td>${new Date(trade.date).toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'})}</td>
+                    <td class="trade-type-${trade.type}">${trade.type.toUpperCase()}</td>
+                    <td class="trade-symbol">${trade.symbol}</td>
+                    <td>${trade.quantity}</td>
+                    <td>${formatMoney(trade.price)}</td>
+                    <td>${formatMoney(trade.value)}</td>
+                </tr>
+            `).join('');
         }
 
         async function loadHealth() {
