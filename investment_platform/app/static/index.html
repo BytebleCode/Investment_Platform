@@ -2409,25 +2409,6 @@
                     </div>
                 </div>
 
-                <!-- Sector Allocation Pie Chart -->
-                <div class="dashboard-grid" style="margin-top: 24px; grid-template-columns: 1fr 1fr;">
-                    <div class="glass-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Sector Allocation</h3>
-                        </div>
-                        <div id="sector-chart-container" style="position: relative; height: 300px; display: flex; align-items: center; justify-content: center;">
-                            <canvas id="sector-pie-chart"></canvas>
-                        </div>
-                    </div>
-                    <div class="glass-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Sector Breakdown</h3>
-                        </div>
-                        <div id="sector-breakdown-list" style="max-height: 300px; overflow-y: auto;">
-                            <div class="loading">Loading sectors...</div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- Backtest View -->
@@ -2439,7 +2420,7 @@
                     <div class="backtest-config">
                         <div class="form-group">
                             <label class="form-label">Strategy</label>
-                            <select class="form-select" id="backtest-strategy" onchange="loadStrategySectors()">
+                            <select class="form-select" id="backtest-strategy">
                                 <option value="monetary_policy">Monetary Policy</option>
                                 <option value="inflation_hedge">Inflation Hedge</option>
                                 <option value="growth_expansion">Growth Expansion</option>
@@ -2596,25 +2577,22 @@
                 <div class="loading">Loading strategies...</div>
             </div>
 
-            <!-- Strategy Sector Allocation Preview -->
+            <!-- Sector Allocation Pie Chart -->
             <div class="dashboard-grid" style="margin-top: 24px; grid-template-columns: 1fr 1fr;">
                 <div class="glass-card">
                     <div class="card-header">
-                        <h3 class="card-title">Strategy Sector Allocation</h3>
+                        <h3 class="card-title">Sector Allocation</h3>
                     </div>
-                    <div id="strategy-sector-chart-container" style="position: relative; height: 300px; display: flex; align-items: center; justify-content: center;">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">&#x1F4CA;</div>
-                            <div>Select a strategy to view sectors</div>
-                        </div>
+                    <div id="sector-chart-container" style="position: relative; height: 300px; display: flex; align-items: center; justify-content: center;">
+                        <canvas id="sector-pie-chart"></canvas>
                     </div>
                 </div>
                 <div class="glass-card">
                     <div class="card-header">
                         <h3 class="card-title">Sector Breakdown</h3>
                     </div>
-                    <div id="strategy-sector-breakdown-list" style="max-height: 300px; overflow-y: auto;">
-                        <div style="color: var(--text-muted); text-align: center; padding: 20px;">Select a strategy to view breakdown</div>
+                    <div id="sector-breakdown-list" style="max-height: 300px; overflow-y: auto;">
+                        <div class="loading">Loading sectors...</div>
                     </div>
                 </div>
             </div>
@@ -4008,139 +3986,6 @@
             `;
         }
 
-        // Strategy sector preview (before running backtest)
-        let strategySectorChart = null;
-
-        async function loadStrategySectors() {
-            const strategyId = document.getElementById('backtest-strategy').value;
-            const chartContainer = document.getElementById('strategy-sector-chart-container');
-            const breakdownEl = document.getElementById('strategy-sector-breakdown-list');
-
-            if (!strategyId) {
-                chartContainer.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">&#x1F4CA;</div>
-                        <div>Select a strategy to view sectors</div>
-                    </div>
-                `;
-                breakdownEl.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">Select a strategy to view breakdown</div>';
-                return;
-            }
-
-            // Fetch strategy details to get symbols
-            const data = await fetchAPI(`/strategies/${strategyId}`);
-
-            if (data.error || !data.strategy) {
-                chartContainer.innerHTML = `<div style="color: var(--accent-red);">Error loading strategy</div>`;
-                return;
-            }
-
-            const symbols = data.strategy.stocks || [];
-
-            if (symbols.length === 0) {
-                chartContainer.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">&#x1F4CA;</div>
-                        <div>No symbols in strategy</div>
-                    </div>
-                `;
-                breakdownEl.innerHTML = '';
-                return;
-            }
-
-            // Fetch sector data for symbols
-            const sectorData = await fetchAPI(`/strategies/${strategyId}/sectors`);
-
-            if (sectorData.error || !sectorData.sectors) {
-                // Fallback: just show symbol count
-                chartContainer.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">&#x1F4CA;</div>
-                        <div>${symbols.length} symbols</div>
-                    </div>
-                `;
-                breakdownEl.innerHTML = `<div style="padding: 12px; color: var(--text-secondary);">Symbols: ${symbols.join(', ')}</div>`;
-                return;
-            }
-
-            const sectors = sectorData.sectors;
-
-            // Restore canvas if needed
-            if (!document.getElementById('strategy-sector-pie-chart')) {
-                chartContainer.innerHTML = '<canvas id="strategy-sector-pie-chart"></canvas>';
-            }
-
-            // Prepare chart data
-            const labels = sectors.map(s => s.name);
-            const values = sectors.map(s => s.percentage);
-            const colors = sectors.map(s => s.color);
-
-            // Destroy existing chart
-            if (strategySectorChart) {
-                strategySectorChart.destroy();
-            }
-
-            // Create pie chart
-            const ctx = document.getElementById('strategy-sector-pie-chart').getContext('2d');
-            strategySectorChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: colors,
-                        borderColor: 'rgba(0, 0, 0, 0.3)',
-                        borderWidth: 2,
-                        hoverOffset: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '55%',
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(10, 10, 20, 0.9)',
-                            titleColor: '#00F5FF',
-                            bodyColor: '#FFFFFF',
-                            borderColor: 'rgba(0, 245, 255, 0.3)',
-                            borderWidth: 1,
-                            padding: 12,
-                            callbacks: {
-                                label: function(context) {
-                                    const sector = sectors[context.dataIndex];
-                                    return `${sector.count} symbols (${sector.percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Render breakdown
-            breakdownEl.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    ${sectors.map(s => `
-                        <div style="display: flex; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid ${s.color};">
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500; color: var(--text-primary);">${s.name}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);">${s.symbols.join(', ')}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-family: 'DM Mono', monospace; color: var(--accent-cyan);">${s.count} symbols</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);">${s.percentage}%</div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
-                    <span style="color: var(--text-secondary);">Total Symbols</span>
-                    <span style="font-family: 'DM Mono', monospace; color: var(--accent-green); font-weight: 600;">${sectors.reduce((sum, s) => sum + s.count, 0)}</span>
-                </div>
-            `;
-        }
-
         async function loadTrades() {
             const data = await fetchAPI('/trades');
             const el = document.getElementById('trades-list');
@@ -4789,7 +4634,6 @@
 
         loadAll();
         loadTrades();  // Load trades once on page load (not in interval - only updates on strategy change)
-        loadStrategySectors();  // Load sector allocation for selected strategy
         setInterval(loadAll, 30000);
         // Ticker data is cached to CSV - only fetch once on page load
 
