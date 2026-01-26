@@ -13,6 +13,7 @@ from app.database import is_csv_backend, get_csv_storage
 from app.data.strategies import STRATEGIES, STRATEGY_IDS
 from app.services.market_data_service import get_market_data_service
 from app.services.strategy_service import StrategyService
+from app.data.symbol_universe import get_sector_for_symbol, SECTOR_METADATA
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +283,39 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital, user_id='de
 
     win_rate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
 
+    # Calculate sector allocation from symbols used
+    sector_breakdown = {}
+    for symbol in valid_symbols:
+        sector, subsector = get_sector_for_symbol(symbol)
+        if sector:
+            if sector not in sector_breakdown:
+                metadata = SECTOR_METADATA.get(sector, {})
+                sector_breakdown[sector] = {
+                    'name': metadata.get('name', sector.title()),
+                    'color': metadata.get('color', '#888888'),
+                    'symbols': [],
+                    'count': 0
+                }
+            sector_breakdown[sector]['symbols'].append(symbol)
+            sector_breakdown[sector]['count'] += 1
+
+    # Convert to list with percentages
+    total_symbols = len(valid_symbols)
+    sectors = []
+    for sector_key, sector_data in sector_breakdown.items():
+        percentage = round((sector_data['count'] / total_symbols) * 100, 1) if total_symbols > 0 else 0
+        sectors.append({
+            'sector': sector_key,
+            'name': sector_data['name'],
+            'color': sector_data['color'],
+            'symbols': sector_data['symbols'],
+            'count': sector_data['count'],
+            'percentage': percentage
+        })
+
+    # Sort by percentage descending
+    sectors.sort(key=lambda x: x['percentage'], reverse=True)
+
     return {
         'strategy': strategy_id,
         'period': {
@@ -293,6 +327,7 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital, user_id='de
         'final_value': round(final_value, 2),
         'data_source': 'yahoo_finance',
         'symbols_used': valid_symbols,
+        'sectors': sectors,
         'metrics': {
             'total_return': round(total_return, 2),
             'annualized_return': round(annualized_return, 2),
