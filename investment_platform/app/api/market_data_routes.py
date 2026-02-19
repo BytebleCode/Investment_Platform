@@ -218,6 +218,8 @@ def get_ticker_data():
     end_date = date.today()
     start_date = end_date - timedelta(days=10)  # Fetch extra days to ensure 5 trading days
 
+    import math
+
     results = {}
     for symbol in symbols:
         try:
@@ -225,7 +227,8 @@ def get_ticker_data():
             price_data = service.get_current_price(symbol)
             current_price = price_data.get('price')
 
-            if current_price is None:
+            # Check for None or NaN
+            if current_price is None or (isinstance(current_price, float) and math.isnan(current_price)):
                 results[symbol] = {'error': 'No price data'}
                 continue
 
@@ -235,9 +238,9 @@ def get_ticker_data():
             if df.empty or len(df) < 2:
                 # No historical data - just show price with 0% change
                 results[symbol] = {
-                    'price': current_price,
+                    'price': round(current_price, 2),
                     'change_pct': 0,
-                    'ma5': current_price,
+                    'ma5': round(current_price, 2),
                     'source': price_data.get('source', 'unknown')
                 }
                 continue
@@ -247,11 +250,21 @@ def get_ticker_data():
             closes = df[close_col].dropna().tail(5)  # Last 5 trading days
 
             if len(closes) > 0:
-                ma5 = closes.mean()
-                change_pct = ((current_price - ma5) / ma5) * 100
+                ma5 = float(closes.mean())
+                if math.isnan(ma5) or ma5 == 0:
+                    ma5 = current_price
+                    change_pct = 0
+                else:
+                    change_pct = ((current_price - ma5) / ma5) * 100
             else:
                 ma5 = current_price
                 change_pct = 0
+
+            # Final NaN guard
+            if math.isnan(change_pct):
+                change_pct = 0
+            if math.isnan(ma5):
+                ma5 = current_price
 
             results[symbol] = {
                 'price': round(current_price, 2),
@@ -263,13 +276,13 @@ def get_ticker_data():
         except Exception as e:
             results[symbol] = {'error': str(e)}
 
-    # Save to CSV cache (only entries without errors)
+    # Save to CSV cache (only entries without errors and valid prices)
     try:
         with open(cache_file, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['symbol', 'price', 'change_pct', 'ma5', 'source'])
             writer.writeheader()
             for symbol, data in results.items():
-                if 'error' not in data:
+                if 'error' not in data and not math.isnan(data.get('price', 0)):
                     writer.writerow({
                         'symbol': symbol,
                         'price': data['price'],

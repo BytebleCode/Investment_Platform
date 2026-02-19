@@ -149,9 +149,16 @@ class MarketDataService:
                     logger.warning(f"Missing column {col} in {filepath}")
                     return None
 
+            # Force numeric conversion for price columns
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
             # Add adj_close if not present (use close)
             if 'adj_close' not in df.columns:
                 df['adj_close'] = df['close']
+            else:
+                df['adj_close'] = pd.to_numeric(df['adj_close'], errors='coerce')
 
             # Select only needed columns (ignore dividends, stock splits, etc.)
             df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
@@ -308,20 +315,26 @@ class MarketDataService:
         # Try local CSV first
         local_df = self._load_from_local_csv(symbol)
         if local_df is not None and not local_df.empty:
-            latest_date = local_df.index[-1]
-            latest_row = local_df.iloc[-1]
-            return {
-                'symbol': symbol,
-                'price': float(latest_row['adj_close']) if pd.notna(latest_row['adj_close']) else float(latest_row['close']),
-                'close': float(latest_row['close']),
-                'open': float(latest_row['open']) if pd.notna(latest_row.get('open')) else None,
-                'high': float(latest_row['high']) if pd.notna(latest_row.get('high')) else None,
-                'low': float(latest_row['low']) if pd.notna(latest_row.get('low')) else None,
-                'volume': int(latest_row['volume']) if pd.notna(latest_row.get('volume')) else None,
-                'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
-                'source': 'local_csv',
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
+            # Walk backwards to find the latest row with a valid close price
+            for offset in range(min(5, len(local_df))):
+                latest_row = local_df.iloc[-(offset + 1)]
+                latest_date = local_df.index[-(offset + 1)]
+                close_val = latest_row.get('close')
+                adj_val = latest_row.get('adj_close')
+                if pd.notna(close_val) or pd.notna(adj_val):
+                    price = float(adj_val) if pd.notna(adj_val) else float(close_val)
+                    return {
+                        'symbol': symbol,
+                        'price': price,
+                        'close': float(close_val) if pd.notna(close_val) else price,
+                        'open': float(latest_row['open']) if pd.notna(latest_row.get('open')) else None,
+                        'high': float(latest_row['high']) if pd.notna(latest_row.get('high')) else None,
+                        'low': float(latest_row['low']) if pd.notna(latest_row.get('low')) else None,
+                        'volume': int(latest_row['volume']) if pd.notna(latest_row.get('volume')) else None,
+                        'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
+                        'source': 'local_csv',
+                        'timestamp': datetime.now(timezone.utc).isoformat()
+                    }
 
         # Try cache
         latest = MarketDataCache.get_latest_price(symbol)
