@@ -229,33 +229,20 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
         print(f"\n  DEBUG: period1={period1} period2={period2}")
 
     # Use v8 chart API (v7 download endpoint is deprecated)
-    urls = [
-        f'https://query2.finance.yahoo.com/v8/finance/chart/{symbol}',
-        f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}',
-    ]
+    url = f'https://query2.finance.yahoo.com/v8/finance/chart/{symbol}'
 
     resp = None
-    for url in urls:
-        try:
-            if debug:
-                print(f"  DEBUG: Trying {url}")
-            resp = session.get(url, params=params, timeout=(5, 10))
-            if debug:
-                print(f"  DEBUG: Status={resp.status_code}, Length={len(resp.text)}")
-            if resp.status_code == 200:
-                break
-            if resp.status_code in (401, 403):
-                if debug:
-                    print(f"  DEBUG: Auth error, trying next endpoint")
-                continue
-        except requests.exceptions.Timeout:
-            if debug:
-                print(f"  DEBUG: Timeout on {url}")
-            continue
-        except Exception as e:
-            if debug:
-                print(f"  DEBUG: Exception: {e}")
-            continue
+    try:
+        if debug:
+            print(f"\n  DEBUG: Trying {url}")
+        resp = session.get(url, params=params, timeout=(5, 10))
+        if debug:
+            print(f"  DEBUG: Status={resp.status_code}, Length={len(resp.text)}")
+    except Exception as e:
+        if debug:
+            print(f"  DEBUG: Exception: {e}")
+        print(f"  {symbol}: Request failed ({e})")
+        return []
 
     if resp is None:
         print(f"  {symbol}: All endpoints failed")
