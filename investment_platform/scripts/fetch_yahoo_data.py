@@ -46,6 +46,9 @@ class SymbolTimeout(Exception):
     pass
 
 
+HAS_SIGALRM = hasattr(signal, 'SIGALRM')
+
+
 def _timeout_handler(signum, frame):
     raise SymbolTimeout("Timed out")
 
@@ -463,9 +466,10 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
 
             print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
-            # Hard 15-second timeout per symbol (catches SSL hangs that ignore requests timeout)
-            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-            signal.alarm(15)
+            # Hard 15-second timeout per symbol (catches SSL hangs on z/OS)
+            if HAS_SIGALRM:
+                old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+                signal.alarm(15)
             try:
                 # Download data (use yahoo_symbol for the API, symbol for the filename)
                 rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
@@ -476,7 +480,8 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                     if consecutive_fails >= 3:
                         # Only refresh session after 3 consecutive auth failures
                         print("refreshing session...", end=' ', flush=True)
-                        signal.alarm(20)  # extra time for session refresh
+                        if HAS_SIGALRM:
+                            signal.alarm(20)
                         time.sleep(3)
                         session, crumb = get_yahoo_session()
                         consecutive_fails = 0
@@ -484,13 +489,15 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                             print("FAILED (session expired)")
                             stats['failed'] += 1
                             continue
-                        signal.alarm(15)
+                        if HAS_SIGALRM:
+                            signal.alarm(15)
                         rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
                     if rows is None:
                         rows = []
             finally:
-                signal.alarm(0)  # cancel alarm
-                signal.signal(signal.SIGALRM, old_handler)
+                if HAS_SIGALRM:
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
 
             if not rows:
                 print("no data")
