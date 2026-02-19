@@ -54,6 +54,16 @@ SYMBOLS_FILE = DATA_DIR / 'symbols_filtered.csv'
 # CSV columns
 CSV_COLUMNS = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
 
+# Banner ticker symbols (always fetched in addition to the symbols list)
+BANNER_SYMBOLS = ['BTC-USD', 'ETH-USD', '^GSPC', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA']
+
+
+def symbol_to_filename(symbol: str) -> str:
+    """Convert a ticker symbol to a safe CSV filename (without .csv extension)."""
+    if symbol.startswith('^'):
+        return '_' + symbol[1:]  # ^GSPC -> _GSPC
+    return symbol
+
 
 def load_symbols() -> list:
     """Load symbols from symbols_filtered.csv."""
@@ -150,7 +160,7 @@ def get_existing_last_date(symbol: str) -> date:
     Returns:
         The last date in the CSV, or None if no file/data exists.
     """
-    csv_path = DATA_DIR / f'{symbol}.csv'
+    csv_path = DATA_DIR / f'{symbol_to_filename(symbol)}.csv'
     if not csv_path.exists():
         return None
 
@@ -325,7 +335,7 @@ def save_symbol_csv(symbol: str, new_rows: list, full_refresh: bool = False):
         new_rows: List of [Date, Open, High, Low, Close, Volume] rows
         full_refresh: If True, overwrite existing file entirely
     """
-    csv_path = DATA_DIR / f'{symbol}.csv'
+    csv_path = DATA_DIR / f'{symbol_to_filename(symbol)}.csv'
 
     if full_refresh or not csv_path.exists():
         # Write fresh file
@@ -531,6 +541,12 @@ def main():
         if not symbols:
             print("No symbols to process. Check symbols_filtered.csv")
             return
+        # Always include banner ticker symbols so the UI has data
+        existing = set(symbols)
+        for bs in BANNER_SYMBOLS:
+            if bs not in existing:
+                symbols.append(bs)
+                existing.add(bs)
 
     if args.loop:
         interval_hours = args.loop
