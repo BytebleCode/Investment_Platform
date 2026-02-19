@@ -8,7 +8,7 @@ Set DISABLE_DASHBOARD=1 to run API-only mode.
 Set FLASK_ENV=development for debug logging.
 
 Environment variables:
-    GUNICORN_BIND      - Host and port (default: 0.0.0.0:8000)
+    GUNICORN_BIND      - Host and port (default: 0.0.0.0:5000)
     GUNICORN_WORKERS   - Number of worker processes (default: auto)
     STORAGE_BACKEND    - csv, sqlite, or db2 (default: sqlite)
     DISABLE_DASHBOARD  - Set to 1 to disable dashboard
@@ -26,13 +26,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def main():
     """Start the Investment Platform with Gunicorn."""
-    bind_addr = os.environ.get("GUNICORN_BIND", "0.0.0.0:8000")
+    bind_addr = os.environ.get("GUNICORN_BIND", "0.0.0.0:5000")
     env = os.environ.get("FLASK_ENV", "production")
     storage = os.environ.get("STORAGE_BACKEND", "sqlite")
     dashboard = os.environ.get("DISABLE_DASHBOARD", "0")
 
     # Get the actual IP address and port for the access URL
-    port = bind_addr.split(":")[-1] if ":" in bind_addr else "8000"
+    port = bind_addr.split(":")[-1] if ":" in bind_addr else "5000"
     try:
         hostname = socket.gethostname()
         ip_addr = socket.gethostbyname(hostname)

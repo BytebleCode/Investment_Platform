@@ -12,7 +12,7 @@ Usage:
 import os
 
 # Server socket
-bind = os.getenv("GUNICORN_BIND", "0.0.0.0:8000")
+bind = os.getenv("GUNICORN_BIND", "0.0.0.0:5000")
 backlog = 2048
 
 # Worker configuration
