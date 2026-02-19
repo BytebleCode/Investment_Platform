@@ -18,6 +18,7 @@ import os
 import sys
 import socket
 import subprocess
+import threading
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -66,17 +67,36 @@ def main():
     ]
 
     try:
-        subprocess.run(cmd, check=True)
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+        )
+        utime_count = 0
+        for raw_line in proc.stdout:
+            line = raw_line.decode("utf-8", errors="replace")
+            if "utime" in line:
+                utime_count = utime_count + 1
+                if utime_count <= 2:
+                    sys.stdout.write(line)
+                elif utime_count == 3:
+                    sys.stdout.write("  (suppressing further utime warnings)\n")
+                continue
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        proc.wait()
+        if proc.returncode and proc.returncode != 0:
+            sys.exit(proc.returncode)
     except KeyboardInterrupt:
         print("")
         print("  Shutting down Investment Platform...")
+        if proc.poll() is None:
+            proc.terminate()
     except FileNotFoundError:
         print("  ERROR: gunicorn is not installed.")
         print("  Install it with: pip install gunicorn")
         sys.exit(1)
-    except subprocess.CalledProcessError as exc:
-        print("  ERROR: Gunicorn exited with code %d" % exc.returncode)
-        sys.exit(exc.returncode)
 
 
 if __name__ == "__main__":
