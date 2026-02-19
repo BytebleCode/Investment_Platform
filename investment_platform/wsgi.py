@@ -17,6 +17,33 @@ import sys
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+
+# Filter repeated utime warnings on z/OS (show first 2 only)
+_real_stderr = sys.stderr
+_utime_count = 0
+
+
+class _StderrFilter(object):
+    def write(self, msg):
+        global _utime_count
+        if "utime:" in msg:
+            _utime_count = _utime_count + 1
+            if _utime_count <= 2:
+                _real_stderr.write(msg)
+            elif _utime_count == 3:
+                _real_stderr.write("  (suppressing further utime warnings)\n")
+            return
+        _real_stderr.write(msg)
+
+    def flush(self):
+        _real_stderr.flush()
+
+    def fileno(self):
+        return _real_stderr.fileno()
+
+
+sys.stderr = _StderrFilter()
+
 from app import create_app
 from app.config import get_config
 
