@@ -198,11 +198,13 @@ def get_ticker_data():
                         'source': row['source'],
                         'cached': True
                     }
-            return jsonify({
-                'ticker': results,
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'cached': True
-            })
+            # Only use cache if it has data for most symbols
+            if len(results) >= len(default_symbols) // 2:
+                return jsonify({
+                    'ticker': results,
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'cached': True
+                })
         except Exception:
             pass  # Cache read failed, fetch fresh data
 
