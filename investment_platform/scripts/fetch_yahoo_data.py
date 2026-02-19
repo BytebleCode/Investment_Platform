@@ -234,7 +234,7 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
         try:
             if debug:
                 print(f"  DEBUG: Trying {url}")
-            resp = session.get(url, params=params, timeout=10)
+            resp = session.get(url, params=params, timeout=(5, 10))
             if debug:
                 print(f"  DEBUG: Status={resp.status_code}, Length={len(resp.text)}")
             if resp.status_code == 200:
@@ -421,6 +421,8 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
         'rows_added': 0,
     }
 
+    consecutive_fails = 0
+
     for i, symbol in enumerate(symbols, 1):
         stats['processed'] += 1
 
@@ -455,23 +457,27 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
             rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
 
             if rows is None:
-                # Session expired or rate limited - refresh and retry once
-                print("refreshing session...", end=' ', flush=True)
-                time.sleep(3)
-                session, crumb = get_yahoo_session()
-                if session is None:
-                    print("FAILED (session expired)")
-                    stats['failed'] += 1
-                    continue
-                rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
-
-            if rows is None:
-                rows = []
+                # Auth error or rate limit - count consecutive failures
+                consecutive_fails += 1
+                if consecutive_fails >= 3:
+                    # Only refresh session after 3 consecutive auth failures
+                    print("refreshing session...", end=' ', flush=True)
+                    time.sleep(3)
+                    session, crumb = get_yahoo_session()
+                    consecutive_fails = 0
+                    if session is None:
+                        print("FAILED (session expired)")
+                        stats['failed'] += 1
+                        continue
+                    rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
+                if rows is None:
+                    rows = []
 
             if not rows:
                 print("no data")
                 stats['failed'] += 1
             else:
+                consecutive_fails = 0
                 save_symbol_csv(symbol, rows, full_refresh=full_refresh)
                 stats['success'] += 1
                 stats['rows_added'] += len(rows)
