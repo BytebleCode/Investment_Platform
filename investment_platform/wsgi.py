@@ -3,6 +3,7 @@ WSGI Entry Point
 
 This module creates the application instance for production WSGI servers
 like Gunicorn or uWSGI.
+All characters in this file are EBCDIC-safe (Code Page 1047).
 
 Usage with Gunicorn:
     gunicorn wsgi:app -c gunicorn.conf.py
@@ -37,5 +38,5 @@ except Exception:
 # WSGI application entry point
 app = flask_app
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()

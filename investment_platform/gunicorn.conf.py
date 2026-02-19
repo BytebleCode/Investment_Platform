@@ -3,63 +3,62 @@ Gunicorn Configuration for Production
 
 This configuration is optimized for running on IBM z/OS mainframe.
 Adjust workers and threads based on available CPU cores.
+All characters in this file are EBCDIC-safe (Code Page 1047).
 
 Usage:
     gunicorn wsgi:app -c gunicorn.conf.py
+    python -m gunicorn wsgi:app -c gunicorn.conf.py
 """
 import os
 import multiprocessing
 
 # Server socket
-bind = os.getenv('GUNICORN_BIND', '0.0.0.0:8000')
+bind = os.getenv("GUNICORN_BIND", "0.0.0.0:8000")
 backlog = 2048
 
 # Worker processes
 # Rule of thumb: (2 x CPU cores) + 1
 # On mainframe, start conservative and scale up
-workers = int(os.getenv('GUNICORN_WORKERS', multiprocessing.cpu_count() * 2 + 1))
-worker_class = 'sync'  # Use 'gevent' or 'eventlet' for async if needed
+_default_workers = multiprocessing.cpu_count() * 2 + 1
+workers = int(os.getenv("GUNICORN_WORKERS", str(_default_workers)))
+worker_class = "sync"
 worker_connections = 1000
-max_requests = 1000  # Restart workers after this many requests (memory leak prevention)
-max_requests_jitter = 50  # Add randomness to max_requests
+max_requests = 1000
+max_requests_jitter = 50
 
 # Timeout configuration
-timeout = 120  # Worker timeout in seconds
-graceful_timeout = 30  # Graceful shutdown timeout
-keepalive = 5  # Keep-alive connections timeout
+timeout = 120
+graceful_timeout = 30
+keepalive = 5
 
 # Process naming
-proc_name = 'investment-platform'
+proc_name = "investment-platform"
 
 # Server mechanics
-daemon = False  # Run in foreground (use systemd/supervisor for daemonization)
-pidfile = '/var/run/investment-platform/gunicorn.pid'
-user = None  # Run as current user (or specify 'www-data' etc.)
+daemon = False
+pidfile = None
+user = None
 group = None
 tmp_upload_dir = None
 
 # Logging
-loglevel = os.getenv('LOG_LEVEL', 'info')
-accesslog = os.getenv('ACCESS_LOG', '/var/log/investment-platform/access.log')
-errorlog = os.getenv('ERROR_LOG', '/var/log/investment-platform/error.log')
-access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
+loglevel = os.getenv("LOG_LEVEL", "info")
+accesslog = os.getenv("ACCESS_LOG", "-")
+errorlog = os.getenv("ERROR_LOG", "-")
+access_log_format = "%%(h)s %%(l)s %%(u)s %%(t)s \"%%(r)s\" %%(s)s %%(b)s \"%%(f)s\" \"%%(a)s\" %%(D)s"
 
-# For local development, log to stdout
-if os.getenv('FLASK_ENV') == 'development':
-    accesslog = '-'
-    errorlog = '-'
-    loglevel = 'debug'
+# For production with file logging, set environment variables:
+#   ACCESS_LOG=/var/log/investment-platform/access.log
+#   ERROR_LOG=/var/log/investment-platform/error.log
 
-# SSL Configuration (uncomment for HTTPS)
-# keyfile = '/path/to/server.key'
-# certfile = '/path/to/server.crt'
-# ssl_version = 'TLSv1_2'
-# cert_reqs = 0  # No client certificate required
-# ciphers = 'TLSv1.2+FIPS:kRSA+FIPS:!eNULL:!aNULL'
+if os.getenv("FLASK_ENV") == "development":
+    accesslog = "-"
+    errorlog = "-"
+    loglevel = "debug"
 
-# Security headers (applied via application middleware, not here)
 
-# Hooks for lifecycle events
+# Lifecycle hooks
+
 def on_starting(server):
     """Called before the master process is initialized."""
     pass
@@ -87,7 +86,7 @@ def pre_fork(server, worker):
 
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
-    server.log.info(f"Worker spawned (pid: {worker.pid})")
+    server.log.info("Worker spawned (pid: %s)" % worker.pid)
 
 
 def post_worker_init(worker):
@@ -97,7 +96,7 @@ def post_worker_init(worker):
 
 def worker_abort(worker):
     """Called when a worker times out."""
-    worker.log.info(f"Worker timeout (pid: {worker.pid})")
+    worker.log.info("Worker timeout (pid: %s)" % worker.pid)
 
 
 def pre_exec(server):
@@ -107,7 +106,7 @@ def pre_exec(server):
 
 def pre_request(worker, req):
     """Called just before a worker processes a request."""
-    worker.log.debug(f"{req.method} {req.path}")
+    worker.log.debug("%s %s" % (req.method, req.path))
 
 
 def post_request(worker, req, environ, resp):
