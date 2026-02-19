@@ -32,25 +32,13 @@ Examples:
 import argparse
 import csv
 import os
-import signal
 import sys
 import time
+import threading
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 import requests
-
-
-class SymbolTimeout(Exception):
-    """Raised when a symbol fetch takes too long."""
-    pass
-
-
-HAS_SIGALRM = hasattr(signal, 'SIGALRM')
-
-
-def _timeout_handler(signum, frame):
-    raise SymbolTimeout("Timed out")
 
 try:
     from bs4 import BeautifulSoup
@@ -466,38 +454,47 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
 
             print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
-            # Hard 15-second timeout per symbol (catches SSL hangs on z/OS)
-            if HAS_SIGALRM:
-                old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-                signal.alarm(15)
-            try:
-                # Download data (use yahoo_symbol for the API, symbol for the filename)
-                rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
+            # Run download in a thread with hard 15s timeout
+            # (catches SSL hangs that ignore requests timeout on z/OS)
+            result_box = [None]  # mutable container for thread result
 
+            def _do_download():
+                result_box[0] = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
+
+            t = threading.Thread(target=_do_download, daemon=True)
+            t.start()
+            t.join(timeout=15)
+
+            if t.is_alive():
+                # Thread is still running = hung request. Abandon it and move on.
+                print("SKIPPED (timed out)")
+                stats['failed'] += 1
+                continue
+
+            rows = result_box[0]
+
+            if rows is None:
+                consecutive_fails += 1
+                if consecutive_fails >= 3:
+                    print("refreshing session...", end=' ', flush=True)
+                    time.sleep(3)
+                    session, crumb = get_yahoo_session()
+                    consecutive_fails = 0
+                    if session is None:
+                        print("FAILED (session expired)")
+                        stats['failed'] += 1
+                        continue
+                    result_box[0] = None
+                    t2 = threading.Thread(target=_do_download, daemon=True)
+                    t2.start()
+                    t2.join(timeout=15)
+                    if t2.is_alive():
+                        print("SKIPPED (timed out)")
+                        stats['failed'] += 1
+                        continue
+                    rows = result_box[0]
                 if rows is None:
-                    # Auth error or rate limit - count consecutive failures
-                    consecutive_fails += 1
-                    if consecutive_fails >= 3:
-                        # Only refresh session after 3 consecutive auth failures
-                        print("refreshing session...", end=' ', flush=True)
-                        if HAS_SIGALRM:
-                            signal.alarm(20)
-                        time.sleep(3)
-                        session, crumb = get_yahoo_session()
-                        consecutive_fails = 0
-                        if session is None:
-                            print("FAILED (session expired)")
-                            stats['failed'] += 1
-                            continue
-                        if HAS_SIGALRM:
-                            signal.alarm(15)
-                        rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
-                    if rows is None:
-                        rows = []
-            finally:
-                if HAS_SIGALRM:
-                    signal.alarm(0)
-                    signal.signal(signal.SIGALRM, old_handler)
+                    rows = []
 
             if not rows:
                 print("no data")
@@ -509,9 +506,6 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                 stats['rows_added'] += len(rows)
                 print(f"{len(rows)} rows")
 
-        except SymbolTimeout:
-            print(f"SKIPPED (timed out)")
-            stats['failed'] += 1
         except Exception as e:
             print(f"SKIPPED - {e}")
             stats['failed'] += 1
