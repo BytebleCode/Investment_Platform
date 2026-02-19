@@ -1,7 +1,7 @@
 """
 Yahoo Finance Data Scraper
 
-Fetches OHLCV market data from Yahoo Finance using requests + BeautifulSoup
+Fetches OHLCV market data from Yahoo Finance v8 chart API using requests
 and saves it as CSV files in data/tickercsv/ (one file per symbol).
 
 Designed to run on z/OS mainframe without yfinance dependency.
@@ -14,6 +14,7 @@ Options:
     --days          Days of history to fetch (default: smart fill from last date)
     --full-refresh  Re-download all data from scratch (5 years)
     --delay         Delay between requests in seconds (default: 1.5)
+    --debug         Print detailed debug output for troubleshooting
 
 Examples:
     # Smart fill: fetch only missing dates for all symbols
@@ -33,7 +34,7 @@ import csv
 import os
 import sys
 import time
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -69,36 +70,12 @@ def load_symbols() -> list:
     return symbols
 
 
-def _extract_crumb_from_html(text: str) -> str:
-    """Try to extract crumb token from HTML page content using multiple patterns."""
-    import re
-
-    # Pattern 1: "crumb":"value"
-    match = re.search(r'"crumb"\s*:\s*"([^"]+)"', text)
-    if match:
-        return match.group(1)
-
-    # Pattern 2: crumb=value in URL-like strings
-    match = re.search(r'crumb=([A-Za-z0-9_.~/-]+)', text)
-    if match:
-        return match.group(1)
-
-    # Pattern 3: CrsrfToken or similar
-    match = re.search(r'"CrumbStore"\s*:\s*\{\s*"crumb"\s*:\s*"([^"]+)"', text)
-    if match:
-        return match.group(1)
-
-    return None
-
-
 def get_yahoo_session() -> tuple:
     """
     Get a requests session with Yahoo Finance cookies and crumb token.
 
-    Tries multiple strategies:
-    1. Visit finance.yahoo.com to collect cookies, then use crumb API
-    2. Extract crumb from page HTML via regex
-    3. Use consent flow if Yahoo redirects to consent page
+    Visits fc.yahoo.com to get the A3 auth cookie, then fetches the crumb
+    from the crumb API endpoint.
 
     Returns:
         (session, crumb) tuple, or (None, None) on failure
@@ -112,31 +89,10 @@ def get_yahoo_session() -> tuple:
     })
 
     try:
-        # Step 1: Visit Yahoo Finance to get cookies
-        # Use a simple page that's unlikely to be blocked
-        resp = session.get('https://finance.yahoo.com/quote/AAPL/history/', timeout=15, allow_redirects=True)
+        # Step 1: Visit fc.yahoo.com to get the A3 auth cookie
+        session.get('https://fc.yahoo.com', timeout=15, allow_redirects=True)
 
-        # Handle EU/consent redirect
-        if 'consent' in resp.url or 'guce.yahoo' in resp.url:
-            print("  (handling consent redirect...)")
-            # Try to accept consent by posting to the consent form
-            if BS4_AVAILABLE:
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                form = soup.find('form', {'method': 'post'}) or soup.find('form')
-                if form:
-                    action = form.get('action', resp.url)
-                    inputs = {}
-                    for inp in form.find_all('input'):
-                        name = inp.get('name')
-                        if name:
-                            inputs[name] = inp.get('value', '')
-                    # Submit consent
-                    resp = session.post(action, data=inputs, timeout=15, allow_redirects=True)
-
-            # Revisit after consent
-            resp = session.get('https://finance.yahoo.com/quote/AAPL/history/', timeout=15)
-
-        # Step 2: Try the crumb API endpoint (most reliable method)
+        # Step 2: Get crumb using the session cookies
         crumb = None
         crumb_resp = session.get(
             'https://query2.finance.yahoo.com/v1/test/getcrumb',
@@ -144,33 +100,39 @@ def get_yahoo_session() -> tuple:
         )
         if crumb_resp.status_code == 200 and crumb_resp.text.strip():
             crumb = crumb_resp.text.strip()
-            # Unescape unicode sequences like \u002F -> /
-            crumb = crumb.encode().decode('unicode_escape') if '\\u' in crumb else crumb
+            if '\\u' in crumb:
+                crumb = crumb.encode().decode('unicode_escape')
 
-        # Step 3: Fallback - extract crumb from page HTML
+        # Step 3: If that didn't work, try finance.yahoo.com + consent flow
         if not crumb:
-            crumb = _extract_crumb_from_html(resp.text)
+            session.get('https://finance.yahoo.com/quote/AAPL/', timeout=15, allow_redirects=True)
 
-        # Step 4: Try alternative - fetch a download page and extract crumb from redirect
-        if not crumb:
-            try:
-                dl_resp = session.get(
-                    'https://query1.finance.yahoo.com/v7/finance/download/AAPL'
-                    '?period1=0&period2=9999999999&interval=1d&events=history',
-                    timeout=10,
-                    allow_redirects=False
-                )
-                if dl_resp.status_code == 302:
-                    location = dl_resp.headers.get('Location', '')
-                    import re
-                    match = re.search(r'crumb=([^&]+)', location)
-                    if match:
-                        crumb = match.group(1)
-            except Exception:
-                pass
+            if BS4_AVAILABLE:
+                resp = session.get('https://finance.yahoo.com/', timeout=15, allow_redirects=True)
+                if 'consent' in resp.url or 'guce.yahoo' in resp.url:
+                    print("  (handling consent redirect...)")
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    form = soup.find('form', {'method': 'post'}) or soup.find('form')
+                    if form:
+                        action = form.get('action', resp.url)
+                        inputs = {}
+                        for inp in form.find_all('input'):
+                            name = inp.get('name')
+                            if name:
+                                inputs[name] = inp.get('value', '')
+                        session.post(action, data=inputs, timeout=15, allow_redirects=True)
+
+            crumb_resp = session.get(
+                'https://query2.finance.yahoo.com/v1/test/getcrumb',
+                timeout=10
+            )
+            if crumb_resp.status_code == 200 and crumb_resp.text.strip():
+                crumb = crumb_resp.text.strip()
+                if '\\u' in crumb:
+                    crumb = crumb.encode().decode('unicode_escape')
 
         if crumb:
-            print(f"Session ready (crumb: yes)")
+            print("Session ready (crumb: yes)")
         else:
             print("WARNING: Could not extract crumb token. Trying downloads without crumb...")
 
@@ -201,7 +163,6 @@ def get_existing_last_date(symbol: str) -> date:
                 return None
             for row in reader:
                 if row and row[0]:
-                    # Parse date (handle both "2021-01-25" and "2021-01-25 00:00:00-05:00")
                     date_str = row[0].split(' ')[0].split('T')[0]
                     try:
                         last_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -213,9 +174,9 @@ def get_existing_last_date(symbol: str) -> date:
 
 
 def download_symbol(session: requests.Session, crumb: str, symbol: str,
-                    start_date: date, end_date: date) -> list:
+                    start_date: date, end_date: date, debug: bool = False) -> list:
     """
-    Download OHLCV data for a single symbol from Yahoo Finance.
+    Download OHLCV data for a single symbol from Yahoo Finance v8 chart API.
 
     Args:
         session: Authenticated requests session
@@ -223,42 +184,54 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
         symbol: Stock ticker symbol
         start_date: Start date for data
         end_date: End date for data
+        debug: Print detailed debug output
 
     Returns:
-        List of rows [Date, Open, High, Low, Close, Volume], or empty list on failure
+        List of rows [Date, Open, High, Low, Close, Volume], or empty list on failure.
+        Returns None to signal session refresh needed (auth error / rate limit).
     """
     # Convert dates to Unix timestamps
     period1 = int(datetime.combine(start_date, datetime.min.time()).timestamp())
-    period2 = int(datetime.combine(end_date, datetime.min.time()).timestamp()) + 86400  # include end date
+    period2 = int(datetime.combine(end_date, datetime.min.time()).timestamp()) + 86400
 
     params = {
         'period1': period1,
         'period2': period2,
         'interval': '1d',
-        'events': 'history',
-        'includeAdjustedClose': 'true',
     }
     if crumb:
         params['crumb'] = crumb
 
-    # Try both query1 and query2 endpoints
+    if debug:
+        print(f"\n  DEBUG: period1={period1} period2={period2}")
+
+    # Use v8 chart API (v7 download endpoint is deprecated)
     urls = [
-        f'https://query1.finance.yahoo.com/v7/finance/download/{symbol}',
-        f'https://query2.finance.yahoo.com/v7/finance/download/{symbol}',
+        f'https://query2.finance.yahoo.com/v8/finance/chart/{symbol}',
+        f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}',
     ]
 
     resp = None
     for url in urls:
         try:
+            if debug:
+                print(f"  DEBUG: Trying {url}")
             resp = session.get(url, params=params, timeout=30)
-            if resp.status_code == 200 and resp.text.startswith('Date'):
-                break  # Got valid CSV data
-            if resp.status_code == 401 or resp.status_code == 403:
-                # Try next endpoint before giving up
+            if debug:
+                print(f"  DEBUG: Status={resp.status_code}, Length={len(resp.text)}")
+            if resp.status_code == 200:
+                break
+            if resp.status_code in (401, 403):
+                if debug:
+                    print(f"  DEBUG: Auth error, trying next endpoint")
                 continue
         except requests.exceptions.Timeout:
+            if debug:
+                print(f"  DEBUG: Timeout on {url}")
             continue
-        except Exception:
+        except Exception as e:
+            if debug:
+                print(f"  DEBUG: Exception: {e}")
             continue
 
     if resp is None:
@@ -266,82 +239,80 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
         return []
 
     try:
-        if resp.status_code == 401 or resp.status_code == 403:
-            # All endpoints returned auth error - need session refresh
-            return None  # Signal to caller to refresh session
+        if resp.status_code in (401, 403):
+            return None  # Signal to refresh session
 
         if resp.status_code == 404:
             print(f"  {symbol}: Not found on Yahoo Finance")
             return []
 
         if resp.status_code == 429:
-            print(f"  {symbol}: Rate limited (429). Waiting...")
+            print(f"  {symbol}: Rate limited (429)")
             return None  # Signal to retry
 
         resp.raise_for_status()
 
-        # Verify we got CSV, not an HTML error page
-        if resp.text.strip().startswith('<') or resp.text.strip().startswith('{'):
-            print(f"  {symbol}: Got non-CSV response")
-            return None
+        # Parse JSON response from v8 chart API
+        data = resp.json()
+        chart = data.get('chart', {})
+        result_list = chart.get('result')
 
-        # Parse CSV response
-        lines = resp.text.strip().split('\n')
-        if len(lines) < 2:
+        if not result_list:
+            error = chart.get('error', {})
+            if debug:
+                print(f"  DEBUG: Chart error: {error}")
             return []
 
-        header = lines[0].split(',')
+        result = result_list[0]
+        timestamps = result.get('timestamp', [])
+        indicators = result.get('indicators', {})
+        quotes = indicators.get('quote', [{}])[0]
+
+        if not timestamps:
+            if debug:
+                print(f"  DEBUG: No timestamps in response")
+            return []
+
+        opens = quotes.get('open', [])
+        highs = quotes.get('high', [])
+        lows = quotes.get('low', [])
+        closes = quotes.get('close', [])
+        volumes = quotes.get('volume', [])
+
         rows = []
+        for i, ts in enumerate(timestamps):
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            date_str = dt.strftime('%Y-%m-%d')
 
-        # Find column indices
-        col_map = {}
-        for i, col in enumerate(header):
-            col_lower = col.strip().lower()
-            if col_lower == 'date':
-                col_map['date'] = i
-            elif col_lower == 'open':
-                col_map['open'] = i
-            elif col_lower == 'high':
-                col_map['high'] = i
-            elif col_lower == 'low':
-                col_map['low'] = i
-            elif col_lower == 'close':
-                col_map['close'] = i
-            elif col_lower == 'adj close':
-                col_map['adj_close'] = i
-            elif col_lower == 'volume':
-                col_map['volume'] = i
-
-        required = ['date', 'open', 'high', 'low', 'close', 'volume']
-        if not all(k in col_map for k in required):
-            print(f"  {symbol}: Unexpected CSV format: {header}")
-            return []
-
-        for line in lines[1:]:
-            parts = line.split(',')
-            if len(parts) < len(header):
-                continue
-
-            date_val = parts[col_map['date']].strip()
-            open_val = parts[col_map['open']].strip()
-            high_val = parts[col_map['high']].strip()
-            low_val = parts[col_map['low']].strip()
-            close_val = parts[col_map['close']].strip()
-            volume_val = parts[col_map['volume']].strip()
+            o = opens[i] if i < len(opens) else None
+            h = highs[i] if i < len(highs) else None
+            l = lows[i] if i < len(lows) else None
+            c = closes[i] if i < len(closes) else None
+            v = volumes[i] if i < len(volumes) else None
 
             # Skip rows with null values
-            if 'null' in (open_val, high_val, low_val, close_val, volume_val):
+            if any(x is None for x in (o, h, l, c, v)):
                 continue
 
-            rows.append([date_val, open_val, high_val, low_val, close_val, volume_val])
+            rows.append([
+                date_str,
+                f'{o:.4f}',
+                f'{h:.4f}',
+                f'{l:.4f}',
+                f'{c:.4f}',
+                str(int(v))
+            ])
+
+        if debug:
+            print(f"  DEBUG: Parsed {len(rows)} rows from {len(timestamps)} timestamps")
 
         return rows
 
-    except requests.exceptions.Timeout:
-        print(f"  {symbol}: Request timed out")
-        return []
     except Exception as e:
         print(f"  {symbol}: ERROR - {e}")
+        if debug:
+            import traceback
+            traceback.print_exc()
         return []
 
 
@@ -423,6 +394,11 @@ def main():
         default=1.5,
         help='Delay between requests in seconds (default: 1.5)'
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Print detailed debug output for troubleshooting'
+    )
 
     args = parser.parse_args()
 
@@ -497,7 +473,7 @@ def main():
         print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
         # Download data
-        rows = download_symbol(session, crumb, symbol, start_date, end_date)
+        rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=args.debug)
 
         if rows is None:
             # Session expired or rate limited - refresh and retry once
@@ -508,7 +484,7 @@ def main():
                 print("FAILED (session expired)")
                 stats['failed'] += 1
                 continue
-            rows = download_symbol(session, crumb, symbol, start_date, end_date)
+            rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=args.debug)
 
         if rows is None:
             rows = []
