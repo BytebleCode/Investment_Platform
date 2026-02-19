@@ -32,11 +32,15 @@ Examples:
 import argparse
 import csv
 import os
+import socket
 import sys
 import time
 import threading
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
+
+# Force global socket timeout - catches DNS/SSL hangs that requests timeout misses
+socket.setdefaulttimeout(10)
 
 import requests
 
