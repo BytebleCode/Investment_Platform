@@ -397,29 +397,44 @@ def download_single_subprocess(symbol, yahoo_symbol, start_date, end_date,
     if debug:
         cmd.append('--debug')
 
+    t_start = time.time()
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
         )
-        if debug and result.stderr:
-            print(f"  DEBUG stderr: {result.stderr[:200]}")
-        if result.returncode == 0 and result.stdout.strip():
-            # Last line of output is the row count
-            last_line = result.stdout.strip().split('\n')[-1].strip()
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            elapsed = time.time() - t_start
+            print(f"[killed after {elapsed:.0f}s] ", end='', flush=True)
+            return False, -1  # -1 signals timeout
+
+        elapsed = time.time() - t_start
+        if debug:
+            if stderr:
+                print(f"  DEBUG stderr: {stderr[:200]}")
+            print(f"  DEBUG subprocess rc={proc.returncode} time={elapsed:.1f}s")
+
+        if proc.returncode == 0 and stdout.strip():
+            last_line = stdout.strip().split('\n')[-1].strip()
             try:
                 count = int(last_line)
                 return True, count
             except ValueError:
+                if debug:
+                    print(f"  DEBUG bad output: {stdout.strip()[-100:]}")
                 return False, 0
-        return False, 0
-    except subprocess.TimeoutExpired:
-        return False, -1  # -1 signals timeout
-    except Exception as e:
         if debug:
-            print(f"  DEBUG subprocess error: {e}")
+            print(f"  DEBUG failed output: {stdout.strip()[-200:]}")
+        return False, 0
+    except Exception as e:
+        elapsed = time.time() - t_start
+        print(f"[error after {elapsed:.0f}s: {e}] ", end='', flush=True)
         return False, 0
 
 
@@ -457,12 +472,18 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
     default_history_days = 365 * 5  # 5 years
 
     print()
+    started = datetime.now()
     print("=" * 60)
     print(f"Yahoo Finance CSV Scraper - {today}")
+    print(f"Started: {started.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"PID:     {os.getpid()}")
+    print(f"Python:  {sys.executable}")
     print("=" * 60)
     print(f"Symbols: {len(symbols)}")
     print(f"Output:  {DATA_DIR}")
     print(f"Mode:    {'Full refresh' if full_refresh else 'Smart fill'}")
+    print(f"Method:  subprocess per symbol (20s kill timeout)")
+    print(f"Batch:   100 symbols per session")
     print(f"Delay:   {delay}s between requests")
     print()
 
@@ -519,7 +540,8 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                         start_date = last_date + timedelta(days=1)
                         end_date = today
                         if start_date > end_date:
-                            print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
+                            now = datetime.now().strftime('%H:%M:%S')
+                            print(f"[{now}] [{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
                             stats['skipped'] += 1
                             continue
                     else:
@@ -527,7 +549,8 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                         start_date = today - timedelta(days=default_history_days)
                         end_date = today
 
-                print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
+                now = datetime.now().strftime('%H:%M:%S')
+                print(f"[{now}] [{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
                 # Run download in a subprocess with hard 20s kill timeout
                 # (z/OS SSL hangs ignore requests timeout and thread timeout)
@@ -537,7 +560,7 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                 )
 
                 if count == -1:
-                    print("SKIPPED (timed out)")
+                    print("SKIPPED (timed out after 20s)")
                     stats['failed'] += 1
                 elif not ok:
                     print("no data")
@@ -556,15 +579,19 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                 time.sleep(delay)
 
     # Print summary
+    finished = datetime.now()
+    elapsed = finished - started
+    elapsed_min = elapsed.total_seconds() / 60
     print()
     print("=" * 60)
-    print("Summary")
+    print(f"Summary - {finished.strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
     print(f"Processed: {stats['processed']}")
     print(f"Success:   {stats['success']}")
     print(f"Failed:    {stats['failed']}")
     print(f"Skipped:   {stats['skipped']} (already up to date)")
     print(f"Rows:      {stats['rows_added']}")
+    print(f"Elapsed:   {elapsed_min:.1f} minutes")
     print()
 
     return stats
