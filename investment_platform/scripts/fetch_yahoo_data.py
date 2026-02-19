@@ -50,10 +50,6 @@ PROJECT_DIR = SCRIPT_DIR.parent
 DATA_DIR = PROJECT_DIR / 'data' / 'tickercsv'
 SYMBOLS_FILE = DATA_DIR / 'symbols_filtered.csv'
 
-# Yahoo Finance endpoints
-YAHOO_BASE_URL = 'https://query1.finance.yahoo.com/v7/finance/download'
-YAHOO_QUOTE_URL = 'https://finance.yahoo.com/quote'
-
 # CSV columns
 CSV_COLUMNS = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
 
@@ -73,52 +69,110 @@ def load_symbols() -> list:
     return symbols
 
 
+def _extract_crumb_from_html(text: str) -> str:
+    """Try to extract crumb token from HTML page content using multiple patterns."""
+    import re
+
+    # Pattern 1: "crumb":"value"
+    match = re.search(r'"crumb"\s*:\s*"([^"]+)"', text)
+    if match:
+        return match.group(1)
+
+    # Pattern 2: crumb=value in URL-like strings
+    match = re.search(r'crumb=([A-Za-z0-9_.~/-]+)', text)
+    if match:
+        return match.group(1)
+
+    # Pattern 3: CrsrfToken or similar
+    match = re.search(r'"CrumbStore"\s*:\s*\{\s*"crumb"\s*:\s*"([^"]+)"', text)
+    if match:
+        return match.group(1)
+
+    return None
+
+
 def get_yahoo_session() -> tuple:
     """
     Get a requests session with Yahoo Finance cookies and crumb token.
 
+    Tries multiple strategies:
+    1. Visit finance.yahoo.com to collect cookies, then use crumb API
+    2. Extract crumb from page HTML via regex
+    3. Use consent flow if Yahoo redirects to consent page
+
     Returns:
         (session, crumb) tuple, or (None, None) on failure
     """
-    if not BS4_AVAILABLE:
-        print("ERROR: beautifulsoup4 not installed. Run: pip install beautifulsoup4")
-        return None, None
-
     session = requests.Session()
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
     })
 
     try:
-        # Visit Yahoo Finance to get cookies
-        resp = session.get('https://finance.yahoo.com/quote/AAPL/', timeout=15)
-        resp.raise_for_status()
+        # Step 1: Visit Yahoo Finance to get cookies
+        # Use a simple page that's unlikely to be blocked
+        resp = session.get('https://finance.yahoo.com/quote/AAPL/history/', timeout=15, allow_redirects=True)
 
-        # Extract crumb from page content
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        # Handle EU/consent redirect
+        if 'consent' in resp.url or 'guce.yahoo' in resp.url:
+            print("  (handling consent redirect...)")
+            # Try to accept consent by posting to the consent form
+            if BS4_AVAILABLE:
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                form = soup.find('form', {'method': 'post'}) or soup.find('form')
+                if form:
+                    action = form.get('action', resp.url)
+                    inputs = {}
+                    for inp in form.find_all('input'):
+                        name = inp.get('name')
+                        if name:
+                            inputs[name] = inp.get('value', '')
+                    # Submit consent
+                    resp = session.post(action, data=inputs, timeout=15, allow_redirects=True)
 
-        # Try to find crumb in script tags
+            # Revisit after consent
+            resp = session.get('https://finance.yahoo.com/quote/AAPL/history/', timeout=15)
+
+        # Step 2: Try the crumb API endpoint (most reliable method)
         crumb = None
-        for script in soup.find_all('script'):
-            text = script.string or ''
-            if '"crumb":"' in text:
-                start = text.index('"crumb":"') + 9
-                end = text.index('"', start)
-                crumb = text[start:end]
-                break
+        crumb_resp = session.get(
+            'https://query2.finance.yahoo.com/v1/test/getcrumb',
+            timeout=10
+        )
+        if crumb_resp.status_code == 200 and crumb_resp.text.strip():
+            crumb = crumb_resp.text.strip()
+            # Unescape unicode sequences like \u002F -> /
+            crumb = crumb.encode().decode('unicode_escape') if '\\u' in crumb else crumb
 
+        # Step 3: Fallback - extract crumb from page HTML
         if not crumb:
-            # Alternative: try the crumb API endpoint
-            crumb_resp = session.get(
-                'https://query2.finance.yahoo.com/v1/test/getcrumb',
-                timeout=10
-            )
-            if crumb_resp.status_code == 200 and crumb_resp.text:
-                crumb = crumb_resp.text.strip()
+            crumb = _extract_crumb_from_html(resp.text)
 
+        # Step 4: Try alternative - fetch a download page and extract crumb from redirect
         if not crumb:
-            print("WARNING: Could not extract crumb token. Downloads may fail.")
+            try:
+                dl_resp = session.get(
+                    'https://query1.finance.yahoo.com/v7/finance/download/AAPL'
+                    '?period1=0&period2=9999999999&interval=1d&events=history',
+                    timeout=10,
+                    allow_redirects=False
+                )
+                if dl_resp.status_code == 302:
+                    location = dl_resp.headers.get('Location', '')
+                    import re
+                    match = re.search(r'crumb=([^&]+)', location)
+                    if match:
+                        crumb = match.group(1)
+            except Exception:
+                pass
+
+        if crumb:
+            print(f"Session ready (crumb: yes)")
+        else:
+            print("WARNING: Could not extract crumb token. Trying downloads without crumb...")
 
         return session, crumb
 
@@ -187,13 +241,33 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
     if crumb:
         params['crumb'] = crumb
 
-    url = f'{YAHOO_BASE_URL}/{symbol}'
+    # Try both query1 and query2 endpoints
+    urls = [
+        f'https://query1.finance.yahoo.com/v7/finance/download/{symbol}',
+        f'https://query2.finance.yahoo.com/v7/finance/download/{symbol}',
+    ]
+
+    resp = None
+    for url in urls:
+        try:
+            resp = session.get(url, params=params, timeout=30)
+            if resp.status_code == 200 and resp.text.startswith('Date'):
+                break  # Got valid CSV data
+            if resp.status_code == 401 or resp.status_code == 403:
+                # Try next endpoint before giving up
+                continue
+        except requests.exceptions.Timeout:
+            continue
+        except Exception:
+            continue
+
+    if resp is None:
+        print(f"  {symbol}: All endpoints failed")
+        return []
 
     try:
-        resp = session.get(url, params=params, timeout=30)
-
         if resp.status_code == 401 or resp.status_code == 403:
-            # Try refreshing crumb
+            # All endpoints returned auth error - need session refresh
             return None  # Signal to caller to refresh session
 
         if resp.status_code == 404:
@@ -205,6 +279,11 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
             return None  # Signal to retry
 
         resp.raise_for_status()
+
+        # Verify we got CSV, not an HTML error page
+        if resp.text.strip().startswith('<') or resp.text.strip().startswith('{'):
+            print(f"  {symbol}: Got non-CSV response")
+            return None
 
         # Parse CSV response
         lines = resp.text.strip().split('\n')
@@ -379,7 +458,6 @@ def main():
         print("FATAL: Could not establish Yahoo Finance session")
         return
 
-    print(f"Session ready (crumb: {'yes' if crumb else 'no'})")
     print("-" * 60)
 
     # Stats
