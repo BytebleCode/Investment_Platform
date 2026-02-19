@@ -4,21 +4,21 @@ Database Initialization Script
 Creates all database tables and initializes the system with:
 1. Default portfolio state
 2. Stock universe data
-3. Initial market data from Yahoo Finance
 
 Usage:
-    python scripts/init_database.py [--with-market-data] [--symbols AAPL,MSFT,...]
+    python scripts/init_database.py [options]
 
 Options:
-    --with-market-data    Fetch and cache historical market data from Yahoo Finance
-    --symbols             Comma-separated list of symbols to fetch (default: all in universe)
-    --days                Number of days of history to fetch (default: 365)
     --drop-existing       Drop existing tables before creating (WARNING: data loss)
+    --verify-only         Only verify database, do not create or modify
+
+Note: For market data, use the CSV scraper instead:
+    python scripts/fetch_yahoo_data.py
 """
 import argparse
 import sys
 import os
-from datetime import datetime, date, timedelta
+from datetime import date
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,15 +30,7 @@ from app.models import (
     PortfolioState, Holdings, TradesHistory,
     StrategyCustomization, MarketDataCache, MarketDataMetadata
 )
-from app.data.stock_universe import STOCK_UNIVERSE
 from app.data.strategies import STRATEGIES
-
-try:
-    import pandas_datareader as pdr
-    PANDAS_DATAREADER_AVAILABLE = True
-except ImportError:
-    PANDAS_DATAREADER_AVAILABLE = False
-
 
 def create_tables(app, drop_existing=False):
     """
@@ -137,110 +129,6 @@ def init_strategy_customizations(app, user_id='default'):
         print("Strategy customizations initialized!")
 
 
-def fetch_market_data(app, symbols=None, days=365):
-    """
-    Fetch historical market data from Yahoo Finance via pandas_datareader.
-
-    Args:
-        app: Flask application instance
-        symbols: List of symbols to fetch (None = all in universe)
-        days: Number of days of history to fetch
-    """
-    if not PANDAS_DATAREADER_AVAILABLE:
-        print("ERROR: pandas_datareader not installed. Run: pip install pandas-datareader")
-        return
-
-    if symbols is None:
-        symbols = list(STOCK_UNIVERSE.keys())
-
-    print(f"\nFetching market data for {len(symbols)} symbols...")
-    print(f"History: {days} days")
-
-    end_date = date.today()
-    start_date = end_date - timedelta(days=days)
-
-    with app.app_context():
-        session = get_scoped_session()
-        success_count = 0
-        error_count = 0
-
-        for i, symbol in enumerate(symbols, 1):
-            print(f"\n[{i}/{len(symbols)}] Fetching {symbol}...", end=" ")
-
-            try:
-                # Fetch data from Yahoo Finance via pandas_datareader
-                hist = pdr.DataReader(symbol, 'yahoo', start_date, end_date)
-
-                if hist.empty:
-                    print("No data available")
-                    error_count += 1
-                    continue
-
-                # Store in database
-                records_added = 0
-                for idx, row in hist.iterrows():
-                    trade_date = idx.date()
-
-                    # Check if already exists
-                    existing = session.query(MarketDataCache).filter_by(
-                        symbol=symbol,
-                        date=trade_date
-                    ).first()
-
-                    if existing:
-                        continue
-
-                    cache_entry = MarketDataCache(
-                        symbol=symbol,
-                        date=trade_date,
-                        open=row['Open'],
-                        high=row['High'],
-                        low=row['Low'],
-                        close=row['Close'],
-                        adj_close=row['Adj Close'],
-                        volume=int(row['Volume']),
-                        fetched_at=datetime.now()
-                    )
-                    session.add(cache_entry)
-                    records_added += 1
-
-                # Update metadata
-                metadata = session.query(MarketDataMetadata).filter_by(symbol=symbol).first()
-                if metadata:
-                    metadata.last_fetch_date = date.today()
-                    metadata.latest_date = hist.index[-1].date()
-                    if metadata.earliest_date is None or hist.index[0].date() < metadata.earliest_date:
-                        metadata.earliest_date = hist.index[0].date()
-                    metadata.total_records = session.query(MarketDataCache).filter_by(symbol=symbol).count() + records_added
-                    metadata.fetch_status = 'complete'
-                else:
-                    metadata = MarketDataMetadata(
-                        symbol=symbol,
-                        last_fetch_date=date.today(),
-                        earliest_date=hist.index[0].date(),
-                        latest_date=hist.index[-1].date(),
-                        total_records=records_added,
-                        fetch_status='complete'
-                    )
-                    session.add(metadata)
-
-                session.commit()
-                print(f"OK ({records_added} new records)")
-                success_count += 1
-
-            except Exception as e:
-                print(f"ERROR: {e}")
-                error_count += 1
-                session.rollback()
-
-        print(f"\n{'='*50}")
-        print(f"Market Data Fetch Complete")
-        print(f"{'='*50}")
-        print(f"Successful: {success_count}")
-        print(f"Errors:     {error_count}")
-        print(f"Total records in cache: {session.query(MarketDataCache).count()}")
-
-
 def verify_database(app):
     """
     Verify database is properly initialized.
@@ -297,23 +185,6 @@ def main():
         description='Initialize Investment Platform database'
     )
     parser.add_argument(
-        '--with-market-data',
-        action='store_true',
-        help='Fetch historical market data from Yahoo Finance'
-    )
-    parser.add_argument(
-        '--symbols',
-        type=str,
-        default=None,
-        help='Comma-separated list of symbols to fetch (default: all)'
-    )
-    parser.add_argument(
-        '--days',
-        type=int,
-        default=365,
-        help='Number of days of history to fetch (default: 365)'
-    )
-    parser.add_argument(
         '--drop-existing',
         action='store_true',
         help='Drop existing tables before creating (WARNING: data loss)'
@@ -346,11 +217,6 @@ def main():
     # Initialize default data
     init_default_portfolio(app)
     init_strategy_customizations(app)
-
-    # Fetch market data if requested
-    if args.with_market_data:
-        symbols = args.symbols.split(',') if args.symbols else None
-        fetch_market_data(app, symbols=symbols, days=args.days)
 
     # Verify
     verify_database(app)

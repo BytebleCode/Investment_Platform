@@ -11,7 +11,6 @@ import sys
 import pytest
 from decimal import Decimal
 from datetime import datetime, date, timedelta
-from unittest.mock import MagicMock, patch
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -224,37 +223,6 @@ def sample_market_data(db_session):
     db_session.commit()
 
     return cache_entries
-
-
-@pytest.fixture
-def mock_yahoo_finance():
-    """Mock Yahoo Finance API responses via pandas_datareader."""
-    import pandas as pd
-    import numpy as np
-
-    def create_mock_data(symbol, data_source, start_date, end_date):
-        """Generate mock OHLCV data."""
-        dates = pd.date_range(start=start_date, end=end_date, freq='B')
-        n = len(dates)
-
-        if n == 0:
-            return pd.DataFrame()
-
-        base_price = 150.0
-        prices = base_price + np.cumsum(np.random.randn(n) * 2)
-
-        return pd.DataFrame({
-            'Open': prices - np.random.rand(n),
-            'High': prices + np.random.rand(n) * 2,
-            'Low': prices - np.random.rand(n) * 2,
-            'Close': prices,
-            'Adj Close': prices,
-            'Volume': np.random.randint(1000000, 5000000, n)
-        }, index=dates)
-
-    with patch('pandas_datareader.DataReader') as mock_datareader:
-        mock_datareader.side_effect = create_mock_data
-        yield mock_datareader
 
 
 @pytest.fixture

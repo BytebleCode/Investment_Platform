@@ -1,7 +1,7 @@
 """
 Market Data Service
 
-Fetches real market data from local CSV files or Yahoo Finance.
+Fetches real market data from local CSV files.
 Prioritizes local CSV files in data/tickercsv folder for faster access.
 """
 import logging
@@ -14,13 +14,6 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import numpy as np
-
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError:
-    YFINANCE_AVAILABLE = False
-
 import pytz
 
 from app.database import get_scoped_session, is_csv_backend, get_csv_storage
@@ -48,33 +41,6 @@ def get_available_symbols_from_list() -> list:
         return []
 
 
-class RateLimiter:
-    """Rate limiter to prevent hitting Yahoo Finance API limits."""
-
-    def __init__(self, max_per_second: float = 2.0, min_delay: float = 0.5):
-        self.max_per_second = max_per_second
-        self.min_delay = min_delay
-        self.last_request_time = 0
-        self.consecutive_errors = 0
-
-    def wait_if_needed(self):
-        elapsed = time.time() - self.last_request_time
-        required_delay = max(1.0 / self.max_per_second, self.min_delay)
-        if elapsed < required_delay:
-            time.sleep(required_delay - elapsed)
-        self.last_request_time = time.time()
-
-    def handle_success(self):
-        self.consecutive_errors = 0
-
-    def handle_error(self) -> float:
-        self.consecutive_errors += 1
-        delay = min(2 ** self.consecutive_errors, 60)
-        logger.warning(f"Rate limit backoff: {delay}s (error #{self.consecutive_errors})")
-        time.sleep(delay)
-        return delay
-
-
 class MarketDataService:
     """
     Fetches real market data from local CSV files.
@@ -82,14 +48,11 @@ class MarketDataService:
     Priority:
     1. Local CSV files in data/tickercsv folder
     2. Cached data in database/CSV storage
-    3. Yahoo Finance API (disabled by default - set use_yahoo=True to enable)
     """
 
-    def __init__(self, cache_hours: int = 24, history_years: int = 5, use_yahoo: bool = False):
+    def __init__(self, cache_hours: int = 24, history_years: int = 5):
         self.cache_hours = cache_hours
         self.history_years = history_years
-        self.use_yahoo = use_yahoo  # Disabled by default - use local CSV files only
-        self.rate_limiter = RateLimiter()
         self.eastern_tz = pytz.timezone('US/Eastern')
         self._local_csv_cache = {}  # Cache loaded CSV data in memory
 
@@ -203,46 +166,6 @@ class MarketDataService:
 
         except Exception as e:
             logger.error(f"Error loading CSV for {symbol}: {e}")
-            return None
-
-    def _fetch_from_yahoo(self, symbol: str, start_date: date, end_date: date) -> Optional[pd.DataFrame]:
-        """Fetch data from Yahoo Finance using yfinance."""
-        self.rate_limiter.wait_if_needed()
-
-        try:
-            if not YFINANCE_AVAILABLE:
-                logger.error("yfinance not available")
-                return None
-
-            ticker = yf.Ticker(symbol)
-            end_date_adj = end_date + timedelta(days=1)
-            df = ticker.history(start=start_date, end=end_date_adj)
-
-            if df.empty:
-                logger.warning(f"No data returned from yfinance for {symbol}")
-                return None
-
-            df = df.rename(columns={
-                'Open': 'open',
-                'High': 'high',
-                'Low': 'low',
-                'Close': 'close',
-                'Volume': 'volume'
-            })
-
-            if 'adj_close' not in df.columns:
-                df['adj_close'] = df['close']
-
-            df.index = df.index.date
-            df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
-
-            self.rate_limiter.handle_success()
-            logger.info(f"Fetched {len(df)} records for {symbol} from Yahoo Finance")
-            return df
-
-        except Exception as e:
-            logger.error(f"Error fetching {symbol} from Yahoo Finance: {e}")
-            self.rate_limiter.handle_error()
             return None
 
     def _save_to_cache(self, symbol: str, df: pd.DataFrame) -> int:
@@ -367,13 +290,6 @@ class MarketDataService:
         if not cached_df.empty:
             return cached_df
 
-        # Fall back to Yahoo Finance (only if enabled)
-        if self.use_yahoo:
-            df = self._fetch_from_yahoo(symbol, start_date, end_date)
-            if df is not None:
-                self._save_to_cache(symbol, df)
-                return df
-
         logger.warning(f"No local data available for {symbol}")
         return pd.DataFrame()
 
@@ -439,33 +355,6 @@ class MarketDataService:
                     'source': 'cache',
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
-
-        # Fall back to Yahoo Finance (only if enabled)
-        if self.use_yahoo:
-            try:
-                end_date = date.today()
-                start_date = end_date - timedelta(days=7)
-                df = self._fetch_from_yahoo(symbol, start_date, end_date)
-
-                if df is not None and not df.empty:
-                    self._save_to_cache(symbol, df)
-                    latest_row = df.iloc[-1]
-                    latest_date = df.index[-1]
-
-                    return {
-                        'symbol': symbol,
-                        'price': float(latest_row['adj_close']),
-                        'close': float(latest_row['close']),
-                        'open': float(latest_row['open']) if pd.notna(latest_row.get('open')) else None,
-                        'high': float(latest_row['high']) if pd.notna(latest_row.get('high')) else None,
-                        'low': float(latest_row['low']) if pd.notna(latest_row.get('low')) else None,
-                        'volume': int(latest_row['volume']) if pd.notna(latest_row.get('volume')) else None,
-                        'date': latest_date.isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date),
-                        'source': 'yahoo',
-                        'timestamp': datetime.now(timezone.utc).isoformat()
-                    }
-            except Exception as e:
-                logger.warning(f"Could not fetch current price for {symbol}: {e}")
 
         return {
             'symbol': symbol,
@@ -554,25 +443,10 @@ class MarketDataService:
         # Clear memory cache to force reload
         self._local_csv_cache.pop(symbol, None)
 
-        # Try local CSV first
+        # Try local CSV
         local_df = self._load_from_local_csv(symbol)
         if local_df is not None and not local_df.empty:
             return True
-
-        # Fall back to Yahoo (only if enabled)
-        if self.use_yahoo:
-            metadata = MarketDataMetadata.get_or_create(symbol)
-            start_date = metadata.latest_date + timedelta(days=1) if metadata.latest_date else date.today() - timedelta(days=365 * self.history_years)
-            end_date = date.today()
-
-            if start_date > end_date:
-                logger.info(f"Cache for {symbol} is already up to date")
-                return True
-
-            df = self._fetch_from_yahoo(symbol, start_date, end_date)
-            if df is not None:
-                self._save_to_cache(symbol, df)
-                return True
 
         return False
 

@@ -57,7 +57,6 @@ from app.services.trading_engine import (
 from app.services.market_data_service import (
     MarketDataService,
     get_market_data_service,
-    RateLimiter
 )
 
 from app.services.strategy_service import StrategyService
@@ -137,7 +136,6 @@ __all__ = [
     # Market Data Service
     'MarketDataService',
     'get_market_data_service',
-    'RateLimiter',
     # Strategy Service
     'StrategyService',
     # Available Symbols
