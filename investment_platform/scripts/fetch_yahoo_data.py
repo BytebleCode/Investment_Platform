@@ -348,14 +348,18 @@ def save_symbol_csv(symbol: str, new_rows: list, full_refresh: bool = False):
     # Append mode: load existing dates to avoid duplicates
     existing_dates = set()
     existing_rows = []
+    num_cols = len(CSV_COLUMNS)  # 6: Date,Open,High,Low,Close,Volume
 
     with open(csv_path, 'r') as f:
         reader = csv.reader(f)
         header = next(reader, None)
         for row in reader:
             if row and row[0]:
-                existing_dates.add(row[0].split(' ')[0].split('T')[0])
-                existing_rows.append(row)
+                date_str = row[0].split(' ')[0].split('T')[0]
+                existing_dates.add(date_str)
+                # Normalize old rows: trim to 6 columns, clean date to YYYY-MM-DD
+                clean_row = [date_str] + row[1:num_cols]
+                existing_rows.append(clean_row)
 
     # Add only new dates
     added = 0
