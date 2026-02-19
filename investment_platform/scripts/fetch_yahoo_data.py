@@ -62,6 +62,14 @@ def symbol_to_filename(symbol: str) -> str:
     """Convert a ticker symbol to a safe CSV filename (without .csv extension)."""
     if symbol.startswith('^'):
         return '_' + symbol[1:]  # ^GSPC -> _GSPC
+    return symbol.replace('=', '_')  # CL=F -> CL_F
+
+
+def filename_to_yahoo_symbol(symbol: str) -> str:
+    """Convert a symbol from the symbols list to a Yahoo Finance query symbol.
+    Symbols in the CSV use underscores for characters unsafe in filenames."""
+    if symbol.endswith('_F'):
+        return symbol[:-2] + '=F'  # CL_F -> CL=F (futures)
     return symbol
 
 
@@ -415,6 +423,7 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
 
     for i, symbol in enumerate(symbols, 1):
         stats['processed'] += 1
+        yahoo_symbol = filename_to_yahoo_symbol(symbol)
 
         # Determine date range for this symbol
         if full_refresh:
@@ -440,8 +449,8 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
 
         print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
-        # Download data
-        rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=debug)
+        # Download data (use yahoo_symbol for the API, symbol for the filename)
+        rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
 
         if rows is None:
             # Session expired or rate limited - refresh and retry once
@@ -452,7 +461,7 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
                 print("FAILED (session expired)")
                 stats['failed'] += 1
                 continue
-            rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=debug)
+            rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
 
         if rows is None:
             rows = []
@@ -551,26 +560,58 @@ def main():
     if args.loop:
         interval_hours = args.loop
         interval_secs = interval_hours * 3600
+        pid = os.getpid()
         print(f"Running in loop mode: every {interval_hours} hours")
-        print(f"PID: {os.getpid()}")
-        print(f"Stop with: kill {os.getpid()}")
+        print(f"PID: {pid}")
+        print(f"Stop with: kill {pid}")
 
-        while True:
-            run_fetch(symbols, days=args.days, full_refresh=args.full_refresh,
-                      delay=args.delay, debug=args.debug)
+        # Write scraper PID file
+        pid_file = PROJECT_DIR / 'scraper.pid'
+        try:
+            pid_file.write_text(
+                f"pid={pid}\n"
+                f"interval={interval_hours}h\n"
+                f"symbols={len(symbols)}\n"
+                f"started={datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
+        except Exception:
+            pass
 
-            # Only full-refresh on the first run
-            args.full_refresh = False
+        # Also append scraper PID to server.pid if it exists
+        server_pid_file = PROJECT_DIR / 'server.pid'
+        try:
+            if server_pid_file.exists():
+                content = server_pid_file.read_text()
+                if 'scraper_pid' not in content:
+                    with open(server_pid_file, 'a') as f:
+                        f.write(f"scraper_pid={pid}\n")
+        except Exception:
+            pass
 
-            next_run = datetime.now() + timedelta(seconds=interval_secs)
-            print(f"Next run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"Sleeping {interval_hours} hours...")
-            print()
+        try:
+            while True:
+                run_fetch(symbols, days=args.days, full_refresh=args.full_refresh,
+                          delay=args.delay, debug=args.debug)
+
+                # Only full-refresh on the first run
+                args.full_refresh = False
+
+                next_run = datetime.now() + timedelta(seconds=interval_secs)
+                print(f"Next run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"Sleeping {interval_hours} hours...")
+                print()
+                try:
+                    time.sleep(interval_secs)
+                except KeyboardInterrupt:
+                    print("\nStopped.")
+                    break
+        finally:
+            # Clean up PID file
             try:
-                time.sleep(interval_secs)
-            except KeyboardInterrupt:
-                print("\nStopped.")
-                break
+                if pid_file.exists():
+                    pid_file.unlink()
+            except Exception:
+                pass
     else:
         run_fetch(symbols, days=args.days, full_refresh=args.full_refresh,
                   delay=args.delay, debug=args.debug)

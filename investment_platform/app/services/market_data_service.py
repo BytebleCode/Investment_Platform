@@ -92,6 +92,7 @@ class MarketDataService:
         patterns = [
             f"{symbol_upper}.csv",                              # Direct match: AAPL.csv
             f"{symbol_upper.replace('.', '_')}.csv",            # Dot to underscore: BRK.B -> BRK_B.csv
+            f"{symbol_upper.replace('=', '_')}.csv",            # Futures: CL=F -> CL_F.csv
             f"{symbol_upper.replace('-', '')}.csv",             # Remove dash: BTC-USD -> BTCUSD.csv
             f"{symbol_upper.replace('-USD', '')}.csv",          # Crypto: BTC-USD -> BTC.csv
             f"_{symbol_upper.replace('^', '')}.csv",            # Index: ^GSPC -> _GSPC.csv
