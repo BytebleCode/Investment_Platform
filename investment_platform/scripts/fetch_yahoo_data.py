@@ -396,14 +396,7 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
     print(f"Delay:   {delay}s between requests")
     print()
 
-    # Initialize session
-    print("Initializing Yahoo Finance session...")
-    session, crumb = get_yahoo_session()
-    if session is None:
-        print("FATAL: Could not establish Yahoo Finance session")
-        return None
-
-    print("-" * 60)
+    BATCH_SIZE = 100
 
     stats = {
         'processed': 0,
@@ -413,97 +406,99 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
         'rows_added': 0,
     }
 
-    consecutive_fails = 0
+    # Process symbols in batches with a fresh session per batch
+    for batch_start in range(0, len(symbols), BATCH_SIZE):
+        batch = symbols[batch_start:batch_start + BATCH_SIZE]
+        batch_num = (batch_start // BATCH_SIZE) + 1
+        total_batches = (len(symbols) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    for i, symbol in enumerate(symbols, 1):
-        stats['processed'] += 1
+        print()
+        print(f"--- Batch {batch_num}/{total_batches} (symbols {batch_start + 1}-{batch_start + len(batch)}) ---")
+        print("Initializing Yahoo Finance session...")
+        session, crumb = get_yahoo_session()
+        if session is None:
+            print("FATAL: Could not establish Yahoo Finance session")
+            print("Waiting 10s before retrying...")
+            time.sleep(10)
+            session, crumb = get_yahoo_session()
+            if session is None:
+                print("FATAL: Skipping this batch")
+                stats['failed'] += len(batch)
+                stats['processed'] += len(batch)
+                continue
+        print("-" * 60)
 
-        try:
-            yahoo_symbol = filename_to_yahoo_symbol(symbol)
+        for j, symbol in enumerate(batch):
+            i = batch_start + j + 1  # overall index
+            stats['processed'] += 1
 
-            # Determine date range for this symbol
-            if full_refresh:
-                start_date = today - timedelta(days=default_history_days)
-                end_date = today
-            elif days:
-                start_date = today - timedelta(days=days)
-                end_date = today
-            else:
-                # Smart fill: check existing CSV
-                last_date = get_existing_last_date(symbol)
-                if last_date:
-                    start_date = last_date + timedelta(days=1)
-                    end_date = today
-                    if start_date > end_date:
-                        print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
-                        stats['skipped'] += 1
-                        continue
-                else:
-                    # No existing data, fetch 5 years
+            try:
+                yahoo_symbol = filename_to_yahoo_symbol(symbol)
+
+                # Determine date range for this symbol
+                if full_refresh:
                     start_date = today - timedelta(days=default_history_days)
                     end_date = today
+                elif days:
+                    start_date = today - timedelta(days=days)
+                    end_date = today
+                else:
+                    # Smart fill: check existing CSV
+                    last_date = get_existing_last_date(symbol)
+                    if last_date:
+                        start_date = last_date + timedelta(days=1)
+                        end_date = today
+                        if start_date > end_date:
+                            print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
+                            stats['skipped'] += 1
+                            continue
+                    else:
+                        # No existing data, fetch 5 years
+                        start_date = today - timedelta(days=default_history_days)
+                        end_date = today
 
-            print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
+                print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
-            # Run download in a thread with hard 15s timeout
-            # (catches SSL hangs that ignore requests timeout on z/OS)
-            result_box = [None]  # mutable container for thread result
+                # Run download in a thread with hard 15s timeout
+                # (catches SSL hangs that ignore requests timeout on z/OS)
+                result_box = [None]
+                _sym = yahoo_symbol  # capture for closure
+                _s = start_date
+                _e = end_date
 
-            def _do_download():
-                result_box[0] = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
+                def _do_download(s=session, c=crumb, sym=_sym, sd=_s, ed=_e):
+                    result_box[0] = download_symbol(s, c, sym, sd, ed, debug=debug)
 
-            t = threading.Thread(target=_do_download, daemon=True)
-            t.start()
-            t.join(timeout=15)
+                t = threading.Thread(target=_do_download, daemon=True)
+                t.start()
+                t.join(timeout=15)
 
-            if t.is_alive():
-                # Thread is still running = hung request. Abandon it and move on.
-                print("SKIPPED (timed out)")
-                stats['failed'] += 1
-                continue
+                if t.is_alive():
+                    print("SKIPPED (timed out)")
+                    stats['failed'] += 1
+                    continue
 
-            rows = result_box[0]
+                rows = result_box[0]
 
-            if rows is None:
-                consecutive_fails += 1
-                if consecutive_fails >= 3:
-                    print("refreshing session...", end=' ', flush=True)
-                    time.sleep(3)
-                    session, crumb = get_yahoo_session()
-                    consecutive_fails = 0
-                    if session is None:
-                        print("FAILED (session expired)")
-                        stats['failed'] += 1
-                        continue
-                    result_box[0] = None
-                    t2 = threading.Thread(target=_do_download, daemon=True)
-                    t2.start()
-                    t2.join(timeout=15)
-                    if t2.is_alive():
-                        print("SKIPPED (timed out)")
-                        stats['failed'] += 1
-                        continue
-                    rows = result_box[0]
                 if rows is None:
                     rows = []
 
-            if not rows:
-                print("no data")
+                if not rows:
+                    print("no data")
+                    stats['failed'] += 1
+                else:
+                    save_symbol_csv(symbol, rows, full_refresh=full_refresh)
+                    stats['success'] += 1
+                    stats['rows_added'] += len(rows)
+                    print(f"{len(rows)} rows")
+
+            except Exception as e:
+                print(f"SKIPPED - {e}")
                 stats['failed'] += 1
-            else:
-                consecutive_fails = 0
-                save_symbol_csv(symbol, rows, full_refresh=full_refresh)
-                stats['success'] += 1
-                stats['rows_added'] += len(rows)
-                print(f"{len(rows)} rows")
 
-        except Exception as e:
-            print(f"SKIPPED - {e}")
-            stats['failed'] += 1
-
-        # Rate limiting delay (except for last symbol)
-        if i < len(symbols):
-            time.sleep(delay)
+            # Rate limiting delay (except for last symbol)
+            if i < len(symbols):
+                time.sleep(delay)
 
     # Print summary
     print()
