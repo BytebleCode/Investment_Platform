@@ -16,6 +16,7 @@ Environment variables:
 """
 import os
 import sys
+import socket
 import subprocess
 
 # Add the project root to the Python path
@@ -29,11 +30,22 @@ def main():
     storage = os.environ.get("STORAGE_BACKEND", "sqlite")
     dashboard = os.environ.get("DISABLE_DASHBOARD", "0")
 
+    # Get the actual IP address and port for the access URL
+    port = bind_addr.split(":")[-1] if ":" in bind_addr else "8000"
+    try:
+        hostname = socket.gethostname()
+        ip_addr = socket.gethostbyname(hostname)
+    except Exception:
+        ip_addr = "127.0.0.1"
+    access_url = "http://%s:%s" % (ip_addr, port)
+
     print("")
     print("  +============================================================+")
     print("  |         Investment Platform - Gunicorn Server              |")
     print("  +============================================================+")
-    print("  |  Bind:       %-43s |" % bind_addr)
+    print("  |  Access:     %-43s |" % access_url)
+    print("  |  Health:     %-43s |" % (access_url + "/api/health"))
+    print("  |  API:        %-43s |" % (access_url + "/api"))
     print("  |  Storage:    %-43s |" % storage)
     print("  |  Environment:%-43s |" % (" " + env))
     print("  |  Dashboard:  %-43s |" % ("disabled" if dashboard in ("1", "true", "yes") else "enabled"))
