@@ -40,13 +40,13 @@ def configure_cors(app: Flask):
     is_production = os.getenv('FLASK_ENV') == 'production'
 
     if is_production:
-        # Restrictive CORS for production
-        allowed_origins = os.getenv('CORS_ORIGINS', '').split(',')
-        allowed_origins = [o.strip() for o in allowed_origins if o.strip()]
+        # CORS for production
+        cors_env = os.getenv('CORS_ORIGINS', '')
+        allowed_origins = [o.strip() for o in cors_env.split(',') if o.strip()]
 
         if not allowed_origins:
-            app.logger.warning('No CORS_ORIGINS configured for production!')
-            allowed_origins = []
+            # Allow all origins if none configured (single-server deployment)
+            allowed_origins = "*"
 
         CORS(app, resources={
             r"/api/*": {
@@ -54,8 +54,7 @@ def configure_cors(app: Flask):
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
                 "expose_headers": ["Content-Range", "X-Content-Range"],
-                "supports_credentials": True,
-                "max_age": 600  # Cache preflight for 10 minutes
+                "max_age": 600
             }
         })
     else:
@@ -120,7 +119,7 @@ def configure_security_headers(app: Flask):
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: https:; "
                 "font-src 'self' data:; "
-                "connect-src 'self';"
+                "connect-src *;"
             )
 
         # Strict Transport Security (HTTPS enforcement)
