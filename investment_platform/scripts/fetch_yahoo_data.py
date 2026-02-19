@@ -234,7 +234,7 @@ def download_symbol(session: requests.Session, crumb: str, symbol: str,
         try:
             if debug:
                 print(f"  DEBUG: Trying {url}")
-            resp = session.get(url, params=params, timeout=30)
+            resp = session.get(url, params=params, timeout=10)
             if debug:
                 print(f"  DEBUG: Status={resp.status_code}, Length={len(resp.text)}")
             if resp.status_code == 200:
@@ -423,57 +423,63 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
 
     for i, symbol in enumerate(symbols, 1):
         stats['processed'] += 1
-        yahoo_symbol = filename_to_yahoo_symbol(symbol)
 
-        # Determine date range for this symbol
-        if full_refresh:
-            start_date = today - timedelta(days=default_history_days)
-            end_date = today
-        elif days:
-            start_date = today - timedelta(days=days)
-            end_date = today
-        else:
-            # Smart fill: check existing CSV
-            last_date = get_existing_last_date(symbol)
-            if last_date:
-                start_date = last_date + timedelta(days=1)
-                end_date = today
-                if start_date > end_date:
-                    print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
-                    stats['skipped'] += 1
-                    continue
-            else:
-                # No existing data, fetch 5 years
+        try:
+            yahoo_symbol = filename_to_yahoo_symbol(symbol)
+
+            # Determine date range for this symbol
+            if full_refresh:
                 start_date = today - timedelta(days=default_history_days)
                 end_date = today
+            elif days:
+                start_date = today - timedelta(days=days)
+                end_date = today
+            else:
+                # Smart fill: check existing CSV
+                last_date = get_existing_last_date(symbol)
+                if last_date:
+                    start_date = last_date + timedelta(days=1)
+                    end_date = today
+                    if start_date > end_date:
+                        print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
+                        stats['skipped'] += 1
+                        continue
+                else:
+                    # No existing data, fetch 5 years
+                    start_date = today - timedelta(days=default_history_days)
+                    end_date = today
 
-        print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
+            print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
-        # Download data (use yahoo_symbol for the API, symbol for the filename)
-        rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
-
-        if rows is None:
-            # Session expired or rate limited - refresh and retry once
-            print("refreshing session...", end=' ', flush=True)
-            time.sleep(3)
-            session, crumb = get_yahoo_session()
-            if session is None:
-                print("FAILED (session expired)")
-                stats['failed'] += 1
-                continue
+            # Download data (use yahoo_symbol for the API, symbol for the filename)
             rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
 
-        if rows is None:
-            rows = []
+            if rows is None:
+                # Session expired or rate limited - refresh and retry once
+                print("refreshing session...", end=' ', flush=True)
+                time.sleep(3)
+                session, crumb = get_yahoo_session()
+                if session is None:
+                    print("FAILED (session expired)")
+                    stats['failed'] += 1
+                    continue
+                rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
 
-        if not rows:
-            print("no data")
+            if rows is None:
+                rows = []
+
+            if not rows:
+                print("no data")
+                stats['failed'] += 1
+            else:
+                save_symbol_csv(symbol, rows, full_refresh=full_refresh)
+                stats['success'] += 1
+                stats['rows_added'] += len(rows)
+                print(f"{len(rows)} rows")
+
+        except Exception as e:
+            print(f"[{i}/{len(symbols)}] {symbol}: SKIPPED - {e}")
             stats['failed'] += 1
-        else:
-            save_symbol_csv(symbol, rows, full_refresh=full_refresh)
-            stats['success'] += 1
-            stats['rows_added'] += len(rows)
-            print(f"{len(rows)} rows")
 
         # Rate limiting delay (except for last symbol)
         if i < len(symbols):
