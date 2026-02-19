@@ -33,9 +33,9 @@ import argparse
 import csv
 import os
 import socket
+import subprocess
 import sys
 import time
-import threading
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
@@ -376,6 +376,76 @@ def save_symbol_csv(symbol: str, new_rows: list, full_refresh: bool = False):
     return added
 
 
+def download_single_subprocess(symbol, yahoo_symbol, start_date, end_date,
+                               full_refresh=False, debug=False, timeout=20):
+    """
+    Download a single symbol by spawning a subprocess.
+    If the subprocess hangs, it gets killed after timeout seconds.
+
+    Returns: (success: bool, rows_count: int)
+    """
+    script = os.path.abspath(__file__)
+    cmd = [
+        sys.executable, script, '--single',
+        yahoo_symbol,
+        symbol,
+        str(start_date),
+        str(end_date),
+    ]
+    if full_refresh:
+        cmd.append('--full-refresh')
+    if debug:
+        cmd.append('--debug')
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if debug and result.stderr:
+            print(f"  DEBUG stderr: {result.stderr[:200]}")
+        if result.returncode == 0 and result.stdout.strip():
+            # Last line of output is the row count
+            last_line = result.stdout.strip().split('\n')[-1].strip()
+            try:
+                count = int(last_line)
+                return True, count
+            except ValueError:
+                return False, 0
+        return False, 0
+    except subprocess.TimeoutExpired:
+        return False, -1  # -1 signals timeout
+    except Exception as e:
+        if debug:
+            print(f"  DEBUG subprocess error: {e}")
+        return False, 0
+
+
+def run_single_symbol(yahoo_symbol, file_symbol, start_str, end_str,
+                      full_refresh=False, debug=False):
+    """
+    Called when --single mode: download one symbol, save CSV, print row count.
+    Exit code 0 = success, 1 = failure.
+    """
+    start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+
+    session, crumb = get_yahoo_session()
+    if session is None:
+        sys.exit(1)
+
+    rows = download_symbol(session, crumb, yahoo_symbol, start_date, end_date, debug=debug)
+
+    if not rows:
+        sys.exit(1)
+
+    save_symbol_csv(file_symbol, rows, full_refresh=full_refresh)
+    print(len(rows))
+    sys.exit(0)
+
+
 def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
     """
     Run one fetch cycle for the given symbols.
@@ -459,38 +529,23 @@ def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
 
                 print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
 
-                # Run download in a thread with hard 15s timeout
-                # (catches SSL hangs that ignore requests timeout on z/OS)
-                result_box = [None]
-                _sym = yahoo_symbol  # capture for closure
-                _s = start_date
-                _e = end_date
+                # Run download in a subprocess with hard 20s kill timeout
+                # (z/OS SSL hangs ignore requests timeout and thread timeout)
+                ok, count = download_single_subprocess(
+                    symbol, yahoo_symbol, start_date, end_date,
+                    full_refresh=full_refresh, debug=debug, timeout=20
+                )
 
-                def _do_download(s=session, c=crumb, sym=_sym, sd=_s, ed=_e):
-                    result_box[0] = download_symbol(s, c, sym, sd, ed, debug=debug)
-
-                t = threading.Thread(target=_do_download, daemon=True)
-                t.start()
-                t.join(timeout=15)
-
-                if t.is_alive():
+                if count == -1:
                     print("SKIPPED (timed out)")
                     stats['failed'] += 1
-                    continue
-
-                rows = result_box[0]
-
-                if rows is None:
-                    rows = []
-
-                if not rows:
+                elif not ok:
                     print("no data")
                     stats['failed'] += 1
                 else:
-                    save_symbol_csv(symbol, rows, full_refresh=full_refresh)
                     stats['success'] += 1
-                    stats['rows_added'] += len(rows)
-                    print(f"{len(rows)} rows")
+                    stats['rows_added'] += count
+                    print(f"{count} rows")
 
             except Exception as e:
                 print(f"SKIPPED - {e}")
@@ -557,8 +612,22 @@ def main():
         metavar='HOURS',
         help='Run continuously, repeating every N hours (default: 24)'
     )
+    parser.add_argument(
+        '--single',
+        nargs=4,
+        metavar=('YAHOO_SYM', 'FILE_SYM', 'START', 'END'),
+        help=argparse.SUPPRESS  # internal: download one symbol and exit
+    )
 
     args = parser.parse_args()
+
+    # Internal single-symbol mode (called by subprocess)
+    if args.single:
+        run_single_symbol(
+            args.single[0], args.single[1], args.single[2], args.single[3],
+            full_refresh=args.full_refresh, debug=args.debug
+        )
+        return
 
     # Ensure output directory exists
     DATA_DIR.mkdir(parents=True, exist_ok=True)
