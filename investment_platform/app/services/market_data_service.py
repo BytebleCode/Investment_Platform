@@ -131,7 +131,14 @@ class MarketDataService:
             return None
 
         try:
-            df = pd.read_csv(filepath)
+            # Read CSV, handling files where data rows have more columns than header
+            # (e.g., header: Date,Open,High,Low,Close,Volume but data has Dividends,Stock Splits too)
+            df = pd.read_csv(filepath, on_bad_lines='warn')
+
+            # If there are unnamed columns (from extra data columns), drop them
+            unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
+            if unnamed_cols:
+                df.drop(columns=unnamed_cols, inplace=True)
 
             # Standardize column names to lowercase
             df.columns = df.columns.str.lower().str.strip()
@@ -159,6 +166,9 @@ class MarketDataService:
                 df['adj_close'] = df['close']
             else:
                 df['adj_close'] = pd.to_numeric(df['adj_close'], errors='coerce')
+
+            # Drop rows where close is NaN (bad data)
+            df = df.dropna(subset=['close'])
 
             # Select only needed columns (ignore dividends, stock splits, etc.)
             df = df[['open', 'high', 'low', 'close', 'adj_close', 'volume']]
