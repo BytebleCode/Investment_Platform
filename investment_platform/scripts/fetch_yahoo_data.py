@@ -366,6 +366,115 @@ def save_symbol_csv(symbol: str, new_rows: list, full_refresh: bool = False):
     return added
 
 
+def run_fetch(symbols, days=None, full_refresh=False, delay=1.5, debug=False):
+    """
+    Run one fetch cycle for the given symbols.
+
+    Returns:
+        stats dict with processed/success/failed/skipped/rows_added counts
+    """
+    today = date.today()
+    default_history_days = 365 * 5  # 5 years
+
+    print()
+    print("=" * 60)
+    print(f"Yahoo Finance CSV Scraper - {today}")
+    print("=" * 60)
+    print(f"Symbols: {len(symbols)}")
+    print(f"Output:  {DATA_DIR}")
+    print(f"Mode:    {'Full refresh' if full_refresh else 'Smart fill'}")
+    print(f"Delay:   {delay}s between requests")
+    print()
+
+    # Initialize session
+    print("Initializing Yahoo Finance session...")
+    session, crumb = get_yahoo_session()
+    if session is None:
+        print("FATAL: Could not establish Yahoo Finance session")
+        return None
+
+    print("-" * 60)
+
+    stats = {
+        'processed': 0,
+        'success': 0,
+        'failed': 0,
+        'skipped': 0,
+        'rows_added': 0,
+    }
+
+    for i, symbol in enumerate(symbols, 1):
+        stats['processed'] += 1
+
+        # Determine date range for this symbol
+        if full_refresh:
+            start_date = today - timedelta(days=default_history_days)
+            end_date = today
+        elif days:
+            start_date = today - timedelta(days=days)
+            end_date = today
+        else:
+            # Smart fill: check existing CSV
+            last_date = get_existing_last_date(symbol)
+            if last_date:
+                start_date = last_date + timedelta(days=1)
+                end_date = today
+                if start_date > end_date:
+                    print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
+                    stats['skipped'] += 1
+                    continue
+            else:
+                # No existing data, fetch 5 years
+                start_date = today - timedelta(days=default_history_days)
+                end_date = today
+
+        print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
+
+        # Download data
+        rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=debug)
+
+        if rows is None:
+            # Session expired or rate limited - refresh and retry once
+            print("refreshing session...", end=' ', flush=True)
+            time.sleep(3)
+            session, crumb = get_yahoo_session()
+            if session is None:
+                print("FAILED (session expired)")
+                stats['failed'] += 1
+                continue
+            rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=debug)
+
+        if rows is None:
+            rows = []
+
+        if not rows:
+            print("no data")
+            stats['failed'] += 1
+        else:
+            save_symbol_csv(symbol, rows, full_refresh=full_refresh)
+            stats['success'] += 1
+            stats['rows_added'] += len(rows)
+            print(f"{len(rows)} rows")
+
+        # Rate limiting delay (except for last symbol)
+        if i < len(symbols):
+            time.sleep(delay)
+
+    # Print summary
+    print()
+    print("=" * 60)
+    print("Summary")
+    print("=" * 60)
+    print(f"Processed: {stats['processed']}")
+    print(f"Success:   {stats['success']}")
+    print(f"Failed:    {stats['failed']}")
+    print(f"Skipped:   {stats['skipped']} (already up to date)")
+    print(f"Rows:      {stats['rows_added']}")
+    print()
+
+    return stats
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -399,6 +508,15 @@ def main():
         action='store_true',
         help='Print detailed debug output for troubleshooting'
     )
+    parser.add_argument(
+        '--loop',
+        type=float,
+        nargs='?',
+        const=24.0,
+        default=None,
+        metavar='HOURS',
+        help='Run continuously, repeating every N hours (default: 24)'
+    )
 
     args = parser.parse_args()
 
@@ -414,106 +532,33 @@ def main():
             print("No symbols to process. Check symbols_filtered.csv")
             return
 
-    today = date.today()
-    default_history_days = 365 * 5  # 5 years
+    if args.loop:
+        interval_hours = args.loop
+        interval_secs = interval_hours * 3600
+        print(f"Running in loop mode: every {interval_hours} hours")
+        print(f"PID: {os.getpid()}")
+        print(f"Stop with: kill {os.getpid()}")
 
-    print()
-    print("=" * 60)
-    print("Yahoo Finance CSV Scraper")
-    print("=" * 60)
-    print(f"Symbols: {len(symbols)}")
-    print(f"Output:  {DATA_DIR}")
-    print(f"Mode:    {'Full refresh' if args.full_refresh else 'Smart fill'}")
-    print(f"Delay:   {args.delay}s between requests")
-    print()
+        while True:
+            run_fetch(symbols, days=args.days, full_refresh=args.full_refresh,
+                      delay=args.delay, debug=args.debug)
 
-    # Initialize session
-    print("Initializing Yahoo Finance session...")
-    session, crumb = get_yahoo_session()
-    if session is None:
-        print("FATAL: Could not establish Yahoo Finance session")
-        return
+            # Only full-refresh on the first run
+            args.full_refresh = False
 
-    print("-" * 60)
-
-    # Stats
-    stats = {
-        'processed': 0,
-        'success': 0,
-        'failed': 0,
-        'skipped': 0,
-        'rows_added': 0,
-    }
-
-    for i, symbol in enumerate(symbols, 1):
-        stats['processed'] += 1
-
-        # Determine date range for this symbol
-        if args.full_refresh:
-            start_date = today - timedelta(days=default_history_days)
-            end_date = today
-        elif args.days:
-            start_date = today - timedelta(days=args.days)
-            end_date = today
-        else:
-            # Smart fill: check existing CSV
-            last_date = get_existing_last_date(symbol)
-            if last_date:
-                start_date = last_date + timedelta(days=1)
-                end_date = today
-                if start_date > end_date:
-                    print(f"[{i}/{len(symbols)}] {symbol}: Already up to date (last: {last_date})")
-                    stats['skipped'] += 1
-                    continue
-            else:
-                # No existing data, fetch 5 years
-                start_date = today - timedelta(days=default_history_days)
-                end_date = today
-
-        print(f"[{i}/{len(symbols)}] {symbol}: {start_date} to {end_date} ...", end=' ', flush=True)
-
-        # Download data
-        rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=args.debug)
-
-        if rows is None:
-            # Session expired or rate limited - refresh and retry once
-            print("refreshing session...", end=' ', flush=True)
-            time.sleep(3)
-            session, crumb = get_yahoo_session()
-            if session is None:
-                print("FAILED (session expired)")
-                stats['failed'] += 1
-                continue
-            rows = download_symbol(session, crumb, symbol, start_date, end_date, debug=args.debug)
-
-        if rows is None:
-            rows = []
-
-        if not rows:
-            print("no data")
-            stats['failed'] += 1
-        else:
-            save_symbol_csv(symbol, rows, full_refresh=args.full_refresh)
-            stats['success'] += 1
-            stats['rows_added'] += len(rows)
-            print(f"{len(rows)} rows")
-
-        # Rate limiting delay (except for last symbol)
-        if i < len(symbols):
-            time.sleep(args.delay)
-
-    # Print summary
-    print()
-    print("=" * 60)
-    print("Summary")
-    print("=" * 60)
-    print(f"Processed: {stats['processed']}")
-    print(f"Success:   {stats['success']}")
-    print(f"Failed:    {stats['failed']}")
-    print(f"Skipped:   {stats['skipped']} (already up to date)")
-    print(f"Rows:      {stats['rows_added']}")
-    print()
-    print("Done!")
+            next_run = datetime.now() + timedelta(seconds=interval_secs)
+            print(f"Next run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Sleeping {interval_hours} hours...")
+            print()
+            try:
+                time.sleep(interval_secs)
+            except KeyboardInterrupt:
+                print("\nStopped.")
+                break
+    else:
+        run_fetch(symbols, days=args.days, full_refresh=args.full_refresh,
+                  delay=args.delay, debug=args.debug)
+        print("Done!")
 
 
 if __name__ == '__main__':
