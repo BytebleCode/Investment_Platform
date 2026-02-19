@@ -131,14 +131,24 @@ class MarketDataService:
             return None
 
         try:
-            # Read CSV, handling files where data rows have more columns than header
+            # Detect if data rows have more columns than header
             # (e.g., header: Date,Open,High,Low,Close,Volume but data has Dividends,Stock Splits too)
-            df = pd.read_csv(filepath, on_bad_lines='warn')
+            with open(filepath, 'r') as f:
+                header_line = f.readline().strip()
+                first_data = f.readline().strip()
 
-            # If there are unnamed columns (from extra data columns), drop them
-            unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
-            if unnamed_cols:
-                df.drop(columns=unnamed_cols, inplace=True)
+            if header_line and first_data:
+                header_count = len(header_line.split(','))
+                data_count = len(first_data.split(','))
+                if data_count > header_count:
+                    # Add extra column names for the additional data fields
+                    extra_names = [f'extra_{i}' for i in range(data_count - header_count)]
+                    all_names = header_line.split(',') + extra_names
+                    df = pd.read_csv(filepath, names=all_names, skiprows=1)
+                else:
+                    df = pd.read_csv(filepath)
+            else:
+                df = pd.read_csv(filepath)
 
             # Standardize column names to lowercase
             df.columns = df.columns.str.lower().str.strip()
