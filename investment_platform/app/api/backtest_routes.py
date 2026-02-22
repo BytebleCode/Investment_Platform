@@ -87,8 +87,8 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital, user_id='de
     valid_symbols = [s for s in symbols if s in historical_data and not historical_data[s].empty]
 
     if not valid_symbols:
-        logger.error(f"No historical data available for any symbols in {strategy_id}")
-        raise ValueError(f"No market data available for strategy '{strategy_id}'. Please ensure you have internet connection to fetch data from Yahoo Finance.")
+        logger.warning(f"No historical data available for any symbols in {strategy_id}")
+        return None
 
     logger.info(f"Running backtest with real data for {len(valid_symbols)} symbols: {valid_symbols}")
 
@@ -111,8 +111,8 @@ def run_backtest(strategy_id, start_date, end_date, initial_capital, user_id='de
     trading_days = sorted(all_dates)
 
     if not trading_days:
-        logger.error("No trading days found in date range")
-        raise ValueError(f"No trading days found between {start_date} and {end_date}. Please check your date range.")
+        logger.warning(f"No trading days found between {start_date} and {end_date}")
+        return None
 
     # Calculate moving averages for each symbol
     moving_averages = {}
@@ -399,6 +399,9 @@ def run_backtest_endpoint():
     try:
         # Run the backtest (now uses StrategyService for customized stocks/params)
         result = run_backtest(strategy_id, start_date, end_date, initial_capital, user_id)
+
+        if result is None:
+            return jsonify({'error': 'No market data available for this strategy and date range.'}), 200
 
         # Generate unique ID and store result
         backtest_id = f"bt_{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:8]}"

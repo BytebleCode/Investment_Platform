@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aether Markets | Portfolio Dashboard</title>
+    <title>The Trade Module Markets | Portfolio Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -803,79 +803,6 @@
         }
 
         /* ===== AI INSIGHTS SECTION ===== */
-        .insights-section {
-            margin-bottom: 60px;
-        }
-
-        .insights-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .insight-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .insight-card:hover {
-            border-color: var(--accent-purple);
-        }
-
-        .insight-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .insight-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-        }
-
-        .insight-title {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .insight-subtitle {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-
-        .insight-content {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        .insight-tag {
-            display: inline-block;
-            padding: 4px 8px;
-            background: rgba(0, 245, 255, 0.1);
-            border: 1px solid rgba(0, 245, 255, 0.2);
-            border-radius: 4px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.65rem;
-            color: var(--accent-cyan);
-            margin-top: 12px;
-        }
-
         /* ===== MARKET TICKER STREAMER ===== */
         .market-ticker-bar {
             position: fixed;
@@ -2191,13 +2118,12 @@
     <!-- Navigation -->
     <nav class="navbar">
         <div class="nav-left">
-            <div class="logo">Aether</div>
+            <div class="logo">The Trade Module</div>
             <div class="tagline">Markets Reimagined</div>
         </div>
         <div class="nav-center">
             <a href="#dashboard" class="nav-link active">Dashboard</a>
             <a href="#strategies" class="nav-link">Strategies</a>
-            <a href="#insights" class="nav-link">Insights</a>
         </div>
         <div class="nav-right">
         </div>
@@ -2579,53 +2505,6 @@
             </div>
         </section>
 
-        <!-- AI Insights Section -->
-        <section class="insights-section" id="insights">
-            <div class="section-header">
-                <h2 class="section-title">AI Insights</h2>
-            </div>
-            <div class="insights-grid">
-                <div class="insight-card">
-                    <div class="insight-header">
-                        <div class="insight-icon">&#x1F4C8;</div>
-                        <div>
-                            <div class="insight-title">Market Sentiment</div>
-                            <div class="insight-subtitle">Real-time analysis</div>
-                        </div>
-                    </div>
-                    <div class="insight-content">
-                        Current market conditions show moderate bullish sentiment across major indices. Tech sector leading with strong momentum signals.
-                    </div>
-                    <span class="insight-tag">Updated 2 min ago</span>
-                </div>
-                <div class="insight-card">
-                    <div class="insight-header">
-                        <div class="insight-icon">&#x1F50D;</div>
-                        <div>
-                            <div class="insight-title">Pattern Detection</div>
-                            <div class="insight-subtitle">Technical analysis</div>
-                        </div>
-                    </div>
-                    <div class="insight-content">
-                        Multiple assets showing consolidation patterns. Watch for breakout opportunities in the next trading session.
-                    </div>
-                    <span class="insight-tag">3 patterns detected</span>
-                </div>
-                <div class="insight-card">
-                    <div class="insight-header">
-                        <div class="insight-icon">&#x26A1;</div>
-                        <div>
-                            <div class="insight-title">Risk Assessment</div>
-                            <div class="insight-subtitle">Portfolio health</div>
-                        </div>
-                    </div>
-                    <div class="insight-content">
-                        Portfolio diversification is within optimal parameters. Consider rebalancing if tech allocation exceeds 40%.
-                    </div>
-                    <span class="insight-tag">Low risk</span>
-                </div>
-            </div>
-        </section>
 
     </div>
 
@@ -2633,7 +2512,7 @@
     <footer class="footer">
         <div class="footer-content">
             <div class="footer-brand">
-                <span class="footer-logo">Aether</span>
+                <span class="footer-logo">The Trade Module</span>
                 <span class="footer-copyright">&copy; 2025 All rights reserved.</span>
             </div>
             <div class="footer-links">
@@ -3763,51 +3642,86 @@
                 </table>
             `;
 
-            // Also update sector chart when holdings change
-            loadSectorAllocation();
+            // Sector chart now shows strategy allocations, updated via loadAll()
         }
 
         // Sector pie chart instance
         let sectorPieChart = null;
 
+        // Sector color mapping (matches SECTOR_METADATA on backend)
+        const SECTOR_COLORS = {
+            financials: { name: 'Financials', color: '#3b82f6' },
+            energy: { name: 'Energy', color: '#f97316' },
+            materials: { name: 'Materials', color: '#84cc16' },
+            technology: { name: 'Technology', color: '#06b6d4' },
+            utilities: { name: 'Utilities', color: '#eab308' },
+            healthcare: { name: 'Healthcare', color: '#ec4899' },
+            consumer_staples: { name: 'Consumer Staples', color: '#8b5cf6' },
+            consumer_discretionary: { name: 'Consumer Discretionary', color: '#f43f5e' },
+            industrials: { name: 'Industrials', color: '#64748b' },
+            real_estate: { name: 'Real Estate', color: '#0ea5e9' },
+            communication: { name: 'Communication Services', color: '#a855f7' },
+            futures: { name: 'Futures', color: '#22c55e' },
+            currency: { name: 'Currency', color: '#14b8a6' },
+            crypto: { name: 'Crypto', color: '#f59e0b' }
+        };
+
         async function loadSectorAllocation() {
-            const data = await fetchAPI('/holdings/sectors');
             const chartContainer = document.getElementById('sector-chart-container');
             const breakdownEl = document.getElementById('sector-breakdown-list');
 
-            if (data.error) {
-                chartContainer.innerHTML = `<div style="color: var(--accent-red);">Error loading sectors</div>`;
-                breakdownEl.innerHTML = '';
-                return;
-            }
+            // Fetch the active strategy's sector allocation
+            const data = await fetchAPI(`/strategies/${currentStrategy}/allocation`);
 
-            if (!data.sectors || data.sectors.length === 0) {
+            if (data.error || !data.sector_allocation || Object.keys(data.sector_allocation).length === 0) {
                 chartContainer.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">&#x1F4CA;</div>
-                        <div>No holdings to display</div>
+                        <div>No allocation data</div>
                     </div>
                 `;
                 breakdownEl.innerHTML = '';
                 return;
             }
 
+            // Aggregate dot-path allocations by top-level sector
+            const sectorTotals = {};
+            const sectorSubsectors = {};
+            for (const [path, weight] of Object.entries(data.sector_allocation)) {
+                const topSector = path.split('.')[0];
+                const subsector = path.split('.').slice(1).join('.') || topSector;
+                sectorTotals[topSector] = (sectorTotals[topSector] || 0) + weight;
+                if (!sectorSubsectors[topSector]) sectorSubsectors[topSector] = [];
+                sectorSubsectors[topSector].push({ name: subsector.replace(/_/g, ' '), weight: weight });
+            }
+
+            // Build sector list sorted by weight
+            const sectors = Object.entries(sectorTotals).map(([key, weight]) => {
+                const meta = SECTOR_COLORS[key] || { name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), color: '#6b7280' };
+                const pct = Math.round(weight * 1000) / 10;
+                return {
+                    sector: key,
+                    name: meta.name,
+                    color: meta.color,
+                    weight: weight,
+                    percentage: pct,
+                    subsectors: sectorSubsectors[key] || []
+                };
+            }).sort((a, b) => b.weight - a.weight);
+
             // Restore canvas if it was replaced
             if (!document.getElementById('sector-pie-chart')) {
                 chartContainer.innerHTML = '<canvas id="sector-pie-chart"></canvas>';
             }
 
-            // Prepare chart data
-            const labels = data.sectors.map(s => s.name);
-            const values = data.sectors.map(s => s.value);
-            const colors = data.sectors.map(s => s.color);
+            const labels = sectors.map(s => s.name);
+            const values = sectors.map(s => s.percentage);
+            const colors = sectors.map(s => s.color);
 
-            // Destroy existing chart if exists
             if (sectorPieChart) {
                 sectorPieChart.destroy();
             }
 
-            // Create pie chart
             const ctx = document.getElementById('sector-pie-chart').getContext('2d');
             sectorPieChart = new Chart(ctx, {
                 type: 'doughnut',
@@ -3838,8 +3752,8 @@
                             padding: 12,
                             callbacks: {
                                 label: function(context) {
-                                    const sector = data.sectors[context.dataIndex];
-                                    return `${formatMoney(sector.value)} (${sector.percentage}%)`;
+                                    const sector = sectors[context.dataIndex];
+                                    return `${sector.percentage}% allocation`;
                                 }
                             }
                         }
@@ -3847,25 +3761,20 @@
                 }
             });
 
-            // Render breakdown list
+            // Render breakdown list with subsector detail
             breakdownEl.innerHTML = `
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    ${data.sectors.map(s => `
+                    ${sectors.map(s => `
                         <div class="sector-breakdown-item" style="display: flex; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid ${s.color};">
                             <div style="flex: 1;">
                                 <div style="font-weight: 500; color: var(--text-primary);">${s.name}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);">${s.holdings.length} holding${s.holdings.length !== 1 ? 's' : ''}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">${s.subsectors.map(sub => sub.name).join(', ')}</div>
                             </div>
                             <div style="text-align: right;">
-                                <div style="font-family: 'DM Mono', monospace; color: var(--accent-cyan);">${formatMoney(s.value)}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);">${s.percentage}%</div>
+                                <div style="font-family: 'DM Mono', monospace; color: var(--accent-cyan);">${s.percentage}%</div>
                             </div>
                         </div>
                     `).join('')}
-                </div>
-                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
-                    <span style="color: var(--text-secondary);">Total Portfolio Value</span>
-                    <span style="font-family: 'DM Mono', monospace; color: var(--accent-green); font-weight: 600;">${formatMoney(data.total_value)}</span>
                 </div>
             `;
         }
