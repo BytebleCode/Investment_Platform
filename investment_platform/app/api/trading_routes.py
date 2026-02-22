@@ -3,9 +3,10 @@ Trading API Routes
 
 Endpoints for executing trades and managing the trading engine.
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
 from app.models import PortfolioState, Holdings
+from app.api.auth_routes import login_required
 from app.services.trading_engine import (
     TradingEngine, auto_trade, execute_trade,
     calculate_execution_price, generate_trade_id
@@ -18,6 +19,7 @@ trading_bp = Blueprint('trading', __name__)
 
 
 @trading_bp.route('/execute', methods=['POST'])
+@login_required
 def execute_manual_trade():
     """
     POST /api/trading/execute
@@ -44,7 +46,7 @@ def execute_manual_trade():
     trade_type = data['type'].lower()
     symbol = data['symbol'].upper()
     quantity = int(data['quantity'])
-    user_id = data.get('user_id', 'default')
+    user_id = g.current_user_id
 
     if trade_type not in ['buy', 'sell']:
         return jsonify({'error': 'type must be "buy" or "sell"'}), 400
@@ -85,6 +87,7 @@ def execute_manual_trade():
 
 
 @trading_bp.route('/auto', methods=['POST'])
+@login_required
 def execute_auto_trade():
     """
     POST /api/trading/auto
@@ -95,8 +98,7 @@ def execute_auto_trade():
     - Which stock to trade
     - How many shares
     """
-    data = request.get_json() or {}
-    user_id = data.get('user_id', 'default')
+    user_id = g.current_user_id
 
     # Get current prices for all strategy stocks
     portfolio = PortfolioState.get_or_create(user_id)
@@ -134,6 +136,7 @@ def execute_auto_trade():
 
 
 @trading_bp.route('/recommendation', methods=['GET'])
+@login_required
 def get_recommendation():
     """
     GET /api/trading/recommendation
@@ -141,7 +144,7 @@ def get_recommendation():
 
     Shows what the auto-trader would do if triggered.
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
 
     # Get current prices
     portfolio = PortfolioState.get_or_create(user_id)
@@ -170,12 +173,13 @@ def get_recommendation():
 
 
 @trading_bp.route('/summary', methods=['GET'])
+@login_required
 def get_trading_summary():
     """
     GET /api/trading/summary
     Get comprehensive portfolio and trading summary.
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
 
     # Get portfolio state
     portfolio = PortfolioState.get_or_create(user_id)

@@ -3,26 +3,27 @@ Trades API Routes
 
 Endpoints for recording and retrieving trade history.
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from datetime import datetime, timezone
 from app.database import is_csv_backend
 from app.models import TradesHistory
+from app.api.auth_routes import login_required
 
 trades_bp = Blueprint('trades', __name__)
 
 
 @trades_bp.route('', methods=['GET'])
+@login_required
 def get_trades():
     """
     GET /api/trades
     Returns trade history for the user.
 
     Query params:
-        - user_id: User identifier (default: 'default')
         - type: Filter by trade type ('buy' or 'sell')
         - limit: Maximum number of trades to return (default: 100)
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
     trade_type = request.args.get('type')
     limit = request.args.get('limit', 100, type=int)
 
@@ -44,6 +45,7 @@ def get_trades():
 
 
 @trades_bp.route('', methods=['POST'])
+@login_required
 def create_trade():
     """
     POST /api/trades
@@ -73,7 +75,7 @@ def create_trade():
 
     try:
         trade = TradesHistory(
-            user_id=data.get('user_id', 'default'),
+            user_id=g.current_user_id,
             trade_id=data['trade_id'],
             timestamp=datetime.fromisoformat(data['timestamp']) if 'timestamp' in data else datetime.now(timezone.utc),
             type=data['type'],
@@ -97,6 +99,7 @@ def create_trade():
 
 
 @trades_bp.route('/<trade_id>', methods=['GET'])
+@login_required
 def get_trade(trade_id):
     """
     GET /api/trades/<trade_id>

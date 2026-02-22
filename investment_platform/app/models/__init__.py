@@ -16,6 +16,7 @@ from app.models.strategy_allocation import StrategyAllocation
 from app.models.strategy_component_params import StrategyComponentParams
 from app.models.strategy_rules import StrategyRule
 from app.models.strategy_conditions import StrategyCondition
+from app.models.user import User
 
 __all__ = [
     'PortfolioState',
@@ -29,5 +30,6 @@ __all__ = [
     'StrategyAllocation',
     'StrategyComponentParams',
     'StrategyRule',
-    'StrategyCondition'
+    'StrategyCondition',
+    'User'
 ]

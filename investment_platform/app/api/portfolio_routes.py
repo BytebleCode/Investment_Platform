@@ -3,28 +3,31 @@ Portfolio API Routes
 
 Endpoints for managing portfolio state including settings, cash, and reset.
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from datetime import datetime, timedelta, timezone
 from app.database import is_csv_backend, get_csv_storage, get_scoped_session
 from app.models import PortfolioState, Holdings, TradesHistory, StrategyCustomization
 from app.data.strategies import STRATEGY_IDS, DEFAULT_CUSTOMIZATION
+from app.api.auth_routes import login_required
 
 portfolio_bp = Blueprint('portfolio', __name__)
 
 
 @portfolio_bp.route('/settings', methods=['GET'])
+@login_required
 def get_settings():
     """
     GET /api/portfolio/settings
     Returns current portfolio configuration.
     """
-    portfolio = PortfolioState.get_or_create()
+    portfolio = PortfolioState.get_or_create(g.current_user_id)
     if isinstance(portfolio, dict):
         return jsonify(portfolio)
     return jsonify(portfolio.to_dict())
 
 
 @portfolio_bp.route('/initialize', methods=['POST'])
+@login_required
 def initialize_portfolio():
     """
     POST /api/portfolio/initialize
@@ -33,7 +36,7 @@ def initialize_portfolio():
     """
     try:
         data = request.get_json(silent=True) or {}
-        user_id = data.get('user_id', 'default')
+        user_id = g.current_user_id
         initial_value = float(data.get('initial_value', 100000.00))
 
         if is_csv_backend():
@@ -97,6 +100,7 @@ def initialize_portfolio():
 
 
 @portfolio_bp.route('/settings', methods=['PUT'])
+@login_required
 def update_settings():
     """
     PUT /api/portfolio/settings
@@ -106,7 +110,7 @@ def update_settings():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
-    user_id = data.get('user_id', 'default')
+    user_id = g.current_user_id
 
     try:
         if is_csv_backend():
@@ -145,6 +149,7 @@ def update_settings():
 
 
 @portfolio_bp.route('/cash', methods=['PUT'])
+@login_required
 def update_cash():
     """
     PUT /api/portfolio/cash
@@ -154,7 +159,7 @@ def update_cash():
     if not data or 'current_cash' not in data:
         return jsonify({'error': 'current_cash is required'}), 400
 
-    user_id = data.get('user_id', 'default')
+    user_id = g.current_user_id
 
     try:
         if is_csv_backend():
@@ -179,13 +184,13 @@ def update_cash():
 
 
 @portfolio_bp.route('/reset', methods=['POST'])
+@login_required
 def reset_portfolio():
     """
     POST /api/portfolio/reset
     Resets portfolio to initial state, clearing all holdings and trades.
     """
-    data = request.get_json() or {}
-    user_id = data.get('user_id', request.args.get('user_id', 'default'))
+    user_id = g.current_user_id
 
     try:
         # Delete holdings and trades
@@ -218,6 +223,7 @@ def reset_portfolio():
 
 
 @portfolio_bp.route('/performance', methods=['GET'])
+@login_required
 def get_performance():
     """
     GET /api/portfolio/performance
@@ -225,9 +231,8 @@ def get_performance():
 
     Query params:
         - period: 1d, 1w, 1m, 3m, 1y, all (default: 1m)
-        - user_id: User identifier (default: 'default')
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
     period = request.args.get('period', '1m')
 
     # Calculate date range based on period

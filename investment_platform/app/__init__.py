@@ -52,6 +52,7 @@ def create_app(config_class=None):
     from app.api.trading_routes import trading_bp
     from app.api.health_routes import health_bp
     from app.api.backtest_routes import backtest_bp
+    from app.api.auth_routes import auth_bp
 
     app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
     app.register_blueprint(holdings_bp, url_prefix='/api/holdings')
@@ -61,9 +62,13 @@ def create_app(config_class=None):
     app.register_blueprint(trading_bp, url_prefix='/api/trading')
     app.register_blueprint(health_bp, url_prefix='/api')
     app.register_blueprint(backtest_bp, url_prefix='/api/backtest')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
     # Create database tables
     create_all()
+
+    # Seed sample account for demo
+    seed_sample_account()
 
     # Serve static HTML frontend
     static_folder = os.path.join(os.path.dirname(__file__), 'static')
@@ -88,6 +93,67 @@ def create_app(config_class=None):
     setup_logging(app)
 
     return app
+
+
+def seed_sample_account():
+    """Create a pre-seeded sample account for demo purposes."""
+    from app.database import is_csv_backend, get_csv_storage
+    from app.models.user import User
+    from decimal import Decimal
+    from datetime import datetime, timezone
+
+    try:
+        existing = User.get_by_username('sample')
+        if existing:
+            return  # Already seeded
+
+        user = User.create('sample', 'sample123')
+        sample_user_id = str(user['id'])
+
+        if is_csv_backend():
+            storage = get_csv_storage()
+            storage.create_portfolio(
+                sample_user_id,
+                initial_value=Decimal('100000.00'),
+                current_cash=Decimal('65210.00'),
+                is_initialized=1,
+                realized_gains=Decimal('0.00')
+            )
+
+            now = datetime.now(timezone.utc)
+            holdings = [
+                {'symbol': 'AAPL', 'name': 'Apple Inc.', 'sector': 'technology', 'quantity': Decimal('50'), 'avg_cost': Decimal('178.00')},
+                {'symbol': 'MSFT', 'name': 'Microsoft Corp.', 'sector': 'technology', 'quantity': Decimal('30'), 'avg_cost': Decimal('410.00')},
+                {'symbol': 'GOOGL', 'name': 'Alphabet Inc.', 'sector': 'technology', 'quantity': Decimal('20'), 'avg_cost': Decimal('165.00')},
+            ]
+            for h in holdings:
+                storage.create_holding(sample_user_id, h['symbol'], **{k: v for k, v in h.items() if k != 'symbol'})
+
+            trades = [
+                {'trade_id': 'sample-001', 'type': 'buy', 'symbol': 'AAPL', 'stock_name': 'Apple Inc.', 'quantity': Decimal('50'), 'price': Decimal('178.00'), 'total': Decimal('8900.00'), 'strategy': 'balanced'},
+                {'trade_id': 'sample-002', 'type': 'buy', 'symbol': 'MSFT', 'stock_name': 'Microsoft Corp.', 'quantity': Decimal('30'), 'price': Decimal('410.00'), 'total': Decimal('12300.00'), 'strategy': 'balanced'},
+                {'trade_id': 'sample-003', 'type': 'buy', 'symbol': 'GOOGL', 'stock_name': 'Alphabet Inc.', 'quantity': Decimal('20'), 'price': Decimal('165.00'), 'total': Decimal('3300.00'), 'strategy': 'balanced'},
+            ]
+            for t in trades:
+                storage.create_trade(user_id=sample_user_id, **t)
+        else:
+            from app import db
+            from app.models import PortfolioState, Holdings, TradesHistory
+            portfolio = PortfolioState(
+                user_id=sample_user_id,
+                initial_value=Decimal('100000.00'),
+                current_cash=Decimal('65210.00'),
+                is_initialized=1
+            )
+            db.session.add(portfolio)
+
+            for symbol, name, qty, cost in [('AAPL', 'Apple Inc.', 50, 178), ('MSFT', 'Microsoft Corp.', 30, 410), ('GOOGL', 'Alphabet Inc.', 20, 165)]:
+                db.session.add(Holdings(user_id=sample_user_id, symbol=symbol, name=name, sector='technology', quantity=qty, avg_cost=cost))
+
+            db.session.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f'Could not seed sample account: {e}')
 
 
 def register_error_handlers(app):

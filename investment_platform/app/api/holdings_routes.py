@@ -3,21 +3,23 @@ Holdings API Routes
 
 Endpoints for managing stock holdings.
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from app.database import is_csv_backend
 from app.models import Holdings
 from app.data.symbol_universe import get_sector_for_symbol, SECTOR_METADATA
+from app.api.auth_routes import login_required
 
 holdings_bp = Blueprint('holdings', __name__)
 
 
 @holdings_bp.route('', methods=['GET'])
+@login_required
 def get_holdings():
     """
     GET /api/holdings
     Returns all holdings for the user.
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
     holdings = Holdings.get_user_holdings(user_id)
 
     # CSV backend returns dicts, DB backend returns objects
@@ -33,6 +35,7 @@ def get_holdings():
 
 
 @holdings_bp.route('', methods=['PUT'])
+@login_required
 def update_holdings():
     """
     PUT /api/holdings
@@ -42,7 +45,7 @@ def update_holdings():
     if not data or 'holdings' not in data:
         return jsonify({'error': 'holdings array is required'}), 400
 
-    user_id = data.get('user_id', 'default')
+    user_id = g.current_user_id
 
     try:
         # Delete existing holdings
@@ -73,12 +76,13 @@ def update_holdings():
 
 
 @holdings_bp.route('/<symbol>', methods=['GET'])
+@login_required
 def get_holding(symbol):
     """
     GET /api/holdings/<symbol>
     Get a specific holding by symbol.
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
     holding = Holdings.get_holding(user_id, symbol.upper())
 
     if not holding:
@@ -88,12 +92,13 @@ def get_holding(symbol):
 
 
 @holdings_bp.route('/sectors', methods=['GET'])
+@login_required
 def get_holdings_by_sector():
     """
     GET /api/holdings/sectors
     Returns holdings aggregated by sector for pie chart display.
     """
-    user_id = request.args.get('user_id', 'default')
+    user_id = g.current_user_id
     holdings = Holdings.get_user_holdings(user_id)
 
     # CSV backend returns dicts, DB backend returns objects

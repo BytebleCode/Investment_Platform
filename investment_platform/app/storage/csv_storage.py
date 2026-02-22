@@ -34,6 +34,7 @@ class CSVStorage:
         'strategy_component_params': 'strategy_component_params.csv',
         'strategy_rules': 'strategy_rules.csv',
         'strategy_conditions': 'strategy_conditions.csv',
+        'users': 'users.csv',
     }
 
     # Column definitions for each model (order matters for CSV)
@@ -91,6 +92,7 @@ class CSVStorage:
             'id', 'strategy_id', 'condition_name', 'condition_type',
             'trigger_config', 'action_config', 'is_active', 'last_triggered', 'created_at'
         ],
+        'users': ['id', 'username', 'password_hash', 'created_at'],
     }
 
     def __init__(self, data_dir='data'):
@@ -1088,6 +1090,56 @@ class CSVStorage:
                     rows[i]['is_active'] = '0'
             self._write_all('strategy_rules', rows)
         return True
+
+    # =====================
+    # Users CRUD
+    # =====================
+
+    def get_user_by_username(self, username):
+        """Get a user by username."""
+        rows = self._read_all('users')
+        for row in rows:
+            if row.get('username') == username:
+                return self._deserialize_row(row, 'users')
+        return None
+
+    def get_user_by_id(self, user_id):
+        """Get a user by ID."""
+        rows = self._read_all('users')
+        for row in rows:
+            if str(row.get('id')) == str(user_id):
+                return self._deserialize_row(row, 'users')
+        return None
+
+    def create_user(self, username, password):
+        """Create a new user with hashed password."""
+        from werkzeug.security import generate_password_hash
+        now = datetime.now(timezone.utc)
+        row = {
+            'id': self._next_id('users'),
+            'username': username,
+            'password_hash': generate_password_hash(password),
+            'created_at': now,
+        }
+        rows = self._read_all('users')
+        serialized = {k: self._serialize_value(v) for k, v in row.items()}
+        rows.append(serialized)
+        self._write_all('users', rows)
+        return {'id': row['id'], 'username': username, 'created_at': now.isoformat()}
+
+    def verify_user(self, username, password):
+        """Verify username/password and return user dict or None."""
+        from werkzeug.security import check_password_hash
+        rows = self._read_all('users')
+        for row in rows:
+            if row.get('username') == username:
+                if check_password_hash(row.get('password_hash', ''), password):
+                    return {
+                        'id': int(row['id']) if row.get('id') else None,
+                        'username': row['username'],
+                        'created_at': row.get('created_at')
+                    }
+        return None
 
     # =====================
     # Strategy Conditions CRUD
