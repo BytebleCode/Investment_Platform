@@ -120,7 +120,7 @@ class ProductionConfig(Config):
     # Stricter security in production
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Strict'
+    SESSION_COOKIE_SAMESITE = 'Lax'
 
     # Production should always use DB2
     @property

@@ -54,7 +54,8 @@ def configure_cors(app: Flask):
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
                 "expose_headers": ["Content-Range", "X-Content-Range"],
-                "max_age": 600
+                "max_age": 600,
+                "supports_credentials": True
             }
         })
     else:
@@ -64,6 +65,7 @@ def configure_cors(app: Flask):
                 "origins": "*",
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "allow_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True
             }
         })
 
@@ -86,7 +88,7 @@ def configure_session_security(app: Flask):
     )
 
     if is_production:
-        app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 
 def configure_security_headers(app: Flask):

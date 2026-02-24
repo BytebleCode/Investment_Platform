@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request
 from datetime import datetime, date, timedelta, timezone
 import uuid
 import logging
+import threading
 
 from app.database import is_csv_backend, get_csv_storage
 from app.data.strategies import STRATEGIES, STRATEGY_IDS
@@ -21,6 +22,7 @@ backtest_bp = Blueprint('backtest', __name__)
 
 # Store backtest results in memory (for simplicity)
 _backtest_results = {}
+_backtest_lock = threading.Lock()
 
 
 def fetch_historical_data(symbols, start_date, end_date):
@@ -406,7 +408,8 @@ def run_backtest_endpoint():
         # Generate unique ID and store result
         backtest_id = f"bt_{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:8]}"
         result['backtest_id'] = backtest_id
-        _backtest_results[backtest_id] = result
+        with _backtest_lock:
+            _backtest_results[backtest_id] = result
 
         return jsonify(result)
 
@@ -421,7 +424,8 @@ def get_backtest_result(backtest_id):
     GET /api/backtest/results/<backtest_id>
     Get a previously run backtest result.
     """
-    result = _backtest_results.get(backtest_id)
+    with _backtest_lock:
+        result = _backtest_results.get(backtest_id)
     if not result:
         return jsonify({'error': f'Backtest {backtest_id} not found'}), 404
     return jsonify(result)

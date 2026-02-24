@@ -39,6 +39,16 @@ def create_app(config_class=None):
     # Initialize database
     init_db(app)
 
+    # Initialize server-side session (filesystem-backed)
+    try:
+        from flask_session import Session
+        Session(app)
+    except ImportError:
+        app.logger.warning(
+            'flask-session not installed. Using default client-side sessions. '
+            'Install with: pip install flask-session'
+        )
+
     # Initialize security (includes CORS, session security, headers, rate limiting)
     from app.security import configure_security
     configure_security(app)

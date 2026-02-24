@@ -7,6 +7,7 @@ Prioritizes local CSV files in data/tickercsv folder for faster access.
 import logging
 import os
 import time
+import threading
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -55,6 +56,7 @@ class MarketDataService:
         self.history_years = history_years
         self.eastern_tz = pytz.timezone('US/Eastern')
         self._local_csv_cache = {}  # Cache loaded CSV data in memory
+        self._cache_lock = threading.Lock()
 
     def is_market_open(self) -> bool:
         """Check if NYSE is currently open."""
@@ -122,9 +124,10 @@ class MarketDataService:
         """
         # Check memory cache first
         symbol_upper = symbol.upper()
-        if symbol_upper in self._local_csv_cache:
-            logger.debug(f"Using memory-cached data for {symbol_upper}")
-            return self._local_csv_cache[symbol_upper].copy()
+        with self._cache_lock:
+            if symbol_upper in self._local_csv_cache:
+                logger.debug(f"Using memory-cached data for {symbol_upper}")
+                return self._local_csv_cache[symbol_upper].copy()
 
         filepath = self._get_csv_filename(symbol)
         if not filepath:
@@ -187,7 +190,8 @@ class MarketDataService:
             df.sort_index(inplace=True)
 
             # Cache in memory
-            self._local_csv_cache[symbol_upper] = df.copy()
+            with self._cache_lock:
+                self._local_csv_cache[symbol_upper] = df.copy()
 
             logger.info(f"Loaded {len(df)} records for {symbol} from local CSV: {filepath.name}")
             return df
@@ -457,11 +461,13 @@ class MarketDataService:
         # Clear memory cache
         if symbol:
             symbol = symbol.upper()
-            self._local_csv_cache.pop(symbol, None)
+            with self._cache_lock:
+                self._local_csv_cache.pop(symbol, None)
             deleted = MarketDataCache.delete_symbol_cache(symbol)
             MarketDataMetadata.delete_metadata(symbol)
         else:
-            self._local_csv_cache.clear()
+            with self._cache_lock:
+                self._local_csv_cache.clear()
             deleted = MarketDataCache.delete_all_cache()
             session = get_scoped_session()
             session.query(MarketDataMetadata).delete()
@@ -475,7 +481,8 @@ class MarketDataService:
         symbol = symbol.upper()
 
         # Clear memory cache to force reload
-        self._local_csv_cache.pop(symbol, None)
+        with self._cache_lock:
+            self._local_csv_cache.pop(symbol, None)
 
         # Try local CSV
         local_df = self._load_from_local_csv(symbol)
@@ -510,11 +517,14 @@ class MarketDataService:
 
 # Singleton instance
 _market_data_service = None
+_service_lock = threading.Lock()
 
 
 def get_market_data_service() -> MarketDataService:
     """Get or create the market data service singleton."""
     global _market_data_service
     if _market_data_service is None:
-        _market_data_service = MarketDataService()
+        with _service_lock:
+            if _market_data_service is None:
+                _market_data_service = MarketDataService()
     return _market_data_service
